@@ -21,9 +21,9 @@
 | Phase 5 | Infrastructure — Blob Storage | ✅ Hoàn thành |
 | Phase 6 | Application — Authorization | ✅ Hoàn thành |
 | Phase 7 | Application — Core Use Cases | ✅ Hoàn thành |
-| Phase 8 | Security — JWT Verification | ⬜ Chưa bắt đầu |
-| Phase 9 | API Layer — gRPC | ⬜ Chưa bắt đầu |
-| Phase 10 | Config & Entry Point | ⬜ Chưa bắt đầu |
+| Phase 8 | Security — JWT Verification | ✅ Hoàn thành |
+| Phase 9 | API Layer — gRPC | ✅ Hoàn thành |
+| Phase 10 | Config & Entry Point | ✅ Hoàn thành |
 | Phase 11 | Advanced — Lifecycle & Versioning | ⬜ Chưa bắt đầu |
 | Phase 12 | Advanced — Audit | ⬜ Chưa bắt đầu |
 | Phase 13 | Testing | ⬜ Chưa bắt đầu |

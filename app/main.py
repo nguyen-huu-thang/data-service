@@ -1,6 +1,8 @@
 from xime import Application
 
-app = Application()
+from app.api.grpc.GrpcAdapter import GrpcAdapter
+
+app = Application(config_module="app.config.dependency")
 
 if __name__ == "__main__":
-    app.run()
+    app.use(GrpcAdapter()).run()

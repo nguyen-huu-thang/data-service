@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package data.v1;
+
+// Object CRUD — external API exposed to clients and application services.
+// requester_identity_id is NOT in request fields; it is extracted from the
+// Bearer JWT in the Authorization metadata header by the handler.
+service ObjectService {
+  rpc CreateObject   (CreateObjectRequest)   returns (CreateObjectResponse);
+  rpc GetObject      (GetObjectRequest)      returns (GetObjectResponse);
+  rpc DownloadObject (DownloadObjectRequest) returns (DownloadObjectResponse);
+  rpc DeleteObject   (DeleteObjectRequest)   returns (DeleteObjectResponse);
+}
+
+// ── Create ────────────────────────────────────────────────────────────────
+
+message CreateObjectRequest {
+  string object_type  = 1;  // IMAGE | VIDEO | DOCUMENT | ARCHIVE | DATASET
+  string visibility   = 2;  // PRIVATE | INTERNAL | PUBLIC
+  string filename     = 3;
+  string content_type = 4;  // MIME type, e.g. image/jpeg
+  bytes  data         = 5;  // binary blob
+  string tenant_id    = 6;  // optional
+}
+
+message CreateObjectResponse {
+  bytes  object_id       = 1;  // 24-byte KSUID
+  string shard_id        = 2;
+  string storage_pointer = 3;
+}
+
+// ── Get metadata ──────────────────────────────────────────────────────────
+
+message GetObjectRequest {
+  bytes object_id = 1;
+}
+
+message GetObjectResponse {
+  bytes  object_id         = 1;
+  bytes  owner_identity_id = 2;
+  string tenant_id         = 3;
+  string shard_id          = 4;
+  string object_type       = 5;
+  string visibility        = 6;
+  string status            = 7;
+  string storage_pointer   = 8;
+  int64  created_at_unix   = 9;
+  int64  updated_at_unix   = 10;
+}
+
+// ── Download blob ─────────────────────────────────────────────────────────
+
+message DownloadObjectRequest {
+  bytes object_id = 1;
+}
+
+message DownloadObjectResponse {
+  bytes  data         = 1;
+  string mime_type    = 2;
+  int64  content_size = 3;
+}
+
+// ── Delete (soft) ─────────────────────────────────────────────────────────
+
+message DeleteObjectRequest {
+  bytes object_id = 1;
+}
+
+message DeleteObjectResponse {
+  bool success = 1;
+}

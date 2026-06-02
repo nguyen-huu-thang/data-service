@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package data.v1;
+
+// Permission management — grant/revoke/list ACL entries on data objects.
+// requester_identity_id is extracted from Bearer JWT by the handler.
+service PermissionService {
+  rpc GrantPermission  (GrantPermissionRequest)  returns (GrantPermissionResponse);
+  rpc RevokePermission (RevokePermissionRequest) returns (RevokePermissionResponse);
+  rpc ListPermissions  (ListPermissionsRequest)  returns (ListPermissionsResponse);
+}
+
+// ── Grant ─────────────────────────────────────────────────────────────────
+
+message GrantPermissionRequest {
+  bytes  object_id           = 1;
+  bytes  subject_identity_id = 2;  // who receives the permission
+  string role                = 3;  // OWNER | EDITOR | CONTRIBUTOR | VIEWER
+}
+
+message GrantPermissionResponse {
+  bytes permission_id = 1;
+}
+
+// ── Revoke ────────────────────────────────────────────────────────────────
+
+message RevokePermissionRequest {
+  bytes object_id           = 1;
+  bytes subject_identity_id = 2;
+}
+
+message RevokePermissionResponse {
+  bool success = 1;
+}
+
+// ── List ──────────────────────────────────────────────────────────────────
+
+message ListPermissionsRequest {
+  bytes object_id = 1;
+}
+
+message PermissionEntry {
+  bytes  permission_id       = 1;
+  bytes  subject_identity_id = 2;
+  string role                = 3;
+  int64  created_at_unix     = 4;
+}
+
+message ListPermissionsResponse {
+  repeated PermissionEntry permissions = 1;
+}

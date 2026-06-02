@@ -2,9 +2,8 @@
 # Operator-configurable. Không commit thông tin nhạy cảm thật.
 # Xem thêm: application-local.yml (gitignored) cho override cục bộ.
 
-server:
-  grpc:
-    port: 50051
+grpc:
+  port: 50051
 
 database:
   url: "postgresql+asyncpg://postgres:password@localhost:5432/data_service"

@@ -1,14 +1,28 @@
 import asyncio
 import io
 
+from core.config.runtime import RuntimeConfig
 from minio import Minio
 from minio.error import S3Error
 
 
 class MinioStorageAdapter:
-    def __init__(self, client: Minio, bucket: str) -> None:
-        self._client = client
-        self._bucket = bucket
+    def __init__(self, config: RuntimeConfig) -> None:
+        endpoint: str = config.get("storage.minio.endpoint", "localhost:9000")
+        access_key: str = config.get("storage.minio.access_key", "minioadmin")
+        secret_key: str = config.get("storage.minio.secret_key", "minioadmin")
+        secure: bool = config.get("storage.minio.secure", False)
+        self._bucket: str = config.get("storage.minio.bucket", "data-service")
+        self._client = Minio(
+            endpoint,
+            access_key=access_key,
+            secret_key=secret_key,
+            secure=secure,
+        )
+
+    async def post_construct(self) -> None:
+        """Guarantee the storage bucket exists right after startup."""
+        await self.ensure_bucket()
 
     async def upload(self, pointer: str, data: bytes, content_type: str) -> None:
         await asyncio.to_thread(
@@ -59,7 +73,6 @@ class MinioStorageAdapter:
         return f"{owner_prefix}/{object_hex}/{filename}"
 
     async def ensure_bucket(self) -> None:
-        """Call once at startup to guarantee the bucket exists."""
         def _ensure() -> None:
             if not self._client.bucket_exists(self._bucket):
                 self._client.make_bucket(self._bucket)
