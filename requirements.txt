@@ -1,0 +1,30 @@
+# ============================================================
+# Data Service — Dependencies
+# ============================================================
+#
+# BƯỚC 1: Cài Xime Framework từ local path (bắt buộc làm trước)
+#   pip install -e "D:\code\xime\xime framework"
+#
+# BƯỚC 2: Cài các dependencies còn lại
+#   pip install -r requirements.txt
+# ============================================================
+
+# Database
+sqlalchemy[asyncio]>=2.0
+asyncpg>=0.29
+alembic>=1.13
+
+# gRPC
+grpcio>=1.62
+grpcio-tools>=1.62
+protobuf>=5.0
+
+# Blob Storage
+minio>=7.2
+
+# Security / Auth
+pyjwt[crypto]>=2.8
+
+# Validation / Config
+pydantic>=2.0
+pyyaml>=6.0

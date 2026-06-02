@@ -1,0 +1,13 @@
+from typing import Protocol
+
+from app.domain.object.ObjectVersion import ObjectVersion
+
+
+class LoadVersionPort(Protocol):
+    async def find_by_id(self, version_id: bytes) -> ObjectVersion | None: ...
+
+    async def find_by_object(self, object_id: bytes) -> list[ObjectVersion]: ...
+
+    async def find_latest_by_object(self, object_id: bytes) -> ObjectVersion | None: ...
+
+    async def count_by_object(self, object_id: bytes) -> int: ...

@@ -1,0 +1,31 @@
+# Data Service — Runtime Configuration
+# Operator-configurable. Không commit thông tin nhạy cảm thật.
+# Xem thêm: application-local.yml (gitignored) cho override cục bộ.
+
+server:
+  grpc:
+    port: 50051
+
+database:
+  url: "postgresql+asyncpg://postgres:password@localhost:5432/data_service"
+  pool_size: 10
+  max_overflow: 20
+  echo: false
+
+storage:
+  minio:
+    endpoint: "localhost:9000"
+    access_key: "minioadmin"
+    secret_key: "minioadmin"
+    bucket: "data-service"
+    secure: false
+
+trust:
+  grpc:
+    host: "localhost"
+    port: 50052
+  service_id: "data-service"
+
+shard:
+  id: "DATA_SHARD_01"
+  partition_count: 256

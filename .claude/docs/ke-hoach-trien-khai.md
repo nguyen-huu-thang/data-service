@@ -13,10 +13,10 @@
 
 | Giai đoạn | Tên | Trạng thái |
 | --- | --- | --- |
-| Phase 0 | Chuẩn bị môi trường | ⬜ Chưa bắt đầu |
-| Phase 1 | Domain Layer | ⬜ Chưa bắt đầu |
-| Phase 2 | Port Interfaces | ⬜ Chưa bắt đầu |
-| Phase 3 | Infrastructure — DB Schema | ⬜ Chưa bắt đầu |
+| Phase 0 | Chuẩn bị môi trường | ✅ Hoàn thành |
+| Phase 1 | Domain Layer | ✅ Hoàn thành |
+| Phase 2 | Port Interfaces | ✅ Hoàn thành |
+| Phase 3 | Infrastructure — DB Schema | ✅ Hoàn thành |
 | Phase 4 | Infrastructure — Repositories | ⬜ Chưa bắt đầu |
 | Phase 5 | Infrastructure — Blob Storage | ⬜ Chưa bắt đầu |
 | Phase 6 | Application — Authorization | ⬜ Chưa bắt đầu |
@@ -49,16 +49,14 @@ Cập nhật `⬜ / 🔄 / ✅` theo tiến độ thực tế.
 python -m venv .venv
 .venv\Scripts\activate  # Windows
 
-# Dependencies cốt lõi
-pip install xime-framework         # Xime Framework
-pip install sqlalchemy asyncpg alembic
-pip install grpcio grpcio-tools protobuf
-pip install minio boto3
-pip install pyjwt cryptography
-pip install pydantic
+# BƯỚC 1: Cài Xime Framework từ local path
+pip install -e "D:\code\xime\xime framework"
+
+# BƯỚC 2: Cài các dependencies còn lại
+pip install -r requirements.txt
 ```
 
-Tạo `requirements.txt` hoặc `pyproject.toml`.
+`pyproject.toml` và `requirements.txt` đã tạo. ✅
 
 ### 0.3 Tạo cấu trúc thư mục
 
@@ -112,8 +110,8 @@ test/
 
 ### Kiểm tra Phase 0
 
-- [ ] `python -c "import xime"` không lỗi
-- [ ] Tất cả package có `__init__.py`
+- [ ] `python -c "import xime"` không lỗi (sau khi cài xime framework)
+- [x] Tất cả package có `__init__.py` ✅ (71 files)
 
 ---
 
@@ -286,10 +284,10 @@ class ShardInfo:
 
 ### Kiểm tra Phase 1
 
-- [ ] Tất cả domain model dùng `@dataclass(frozen=True)`
-- [ ] State change method return instance mới (không mutate)
-- [ ] Không có import nào từ `infrastructure`, `application`, `sqlalchemy`
-- [ ] `ROLE_CAPABILITIES` đúng theo thiết kế
+- [x] Tất cả domain model dùng `@dataclass(frozen=True)` ✅
+- [x] State change method return instance mới (không mutate) ✅
+- [x] Không có import nào từ `infrastructure`, `application`, `sqlalchemy` ✅
+- [x] `ROLE_CAPABILITIES` đúng theo thiết kế ✅ (dùng `frozenset` thay `set` cho immutability)
 
 ---
 
@@ -370,9 +368,9 @@ class SaveAuditPort(Protocol):
 
 ### Kiểm tra Phase 2
 
-- [ ] Tất cả port dùng `Protocol` (không phải ABC)
-- [ ] Method signature rõ ràng với type hint đầy đủ
-- [ ] Không có logic implementation trong port
+- [x] Tất cả port dùng `Protocol` (không phải ABC) ✅
+- [x] Method signature rõ ràng với type hint đầy đủ ✅
+- [x] Không có logic implementation trong port ✅
 
 ---
 
@@ -440,10 +438,10 @@ Tạo migration đầu tiên cho 4 bảng MVP:
 
 ### Kiểm tra Phase 3
 
-- [ ] Entity không có business logic
-- [ ] Tất cả `binary(24)` dùng `LargeBinary(24)`
-- [ ] Index theo thiết kế: `(owner_identity_id, tenant_id, status, object_type)`
-- [ ] Migration chạy được: `alembic upgrade head`
+- [x] Entity không có business logic ✅
+- [x] Tất cả `binary(24)` dùng `LargeBinary(24)` ✅
+- [x] Index theo thiết kế: `(owner_identity_id, tenant_id, status, object_type)` ✅
+- [ ] Migration chạy được: `DATABASE_URL=... alembic upgrade head` (cần PostgreSQL chạy)
 
 ---
 
