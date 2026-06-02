@@ -17,10 +17,10 @@
 | Phase 1 | Domain Layer | ✅ Hoàn thành |
 | Phase 2 | Port Interfaces | ✅ Hoàn thành |
 | Phase 3 | Infrastructure — DB Schema | ✅ Hoàn thành |
-| Phase 4 | Infrastructure — Repositories | ⬜ Chưa bắt đầu |
-| Phase 5 | Infrastructure — Blob Storage | ⬜ Chưa bắt đầu |
-| Phase 6 | Application — Authorization | ⬜ Chưa bắt đầu |
-| Phase 7 | Application — Core Use Cases | ⬜ Chưa bắt đầu |
+| Phase 4 | Infrastructure — Repositories | ✅ Hoàn thành |
+| Phase 5 | Infrastructure — Blob Storage | ✅ Hoàn thành |
+| Phase 6 | Application — Authorization | ✅ Hoàn thành |
+| Phase 7 | Application — Core Use Cases | ✅ Hoàn thành |
 | Phase 8 | Security — JWT Verification | ⬜ Chưa bắt đầu |
 | Phase 9 | API Layer — gRPC | ⬜ Chưa bắt đầu |
 | Phase 10 | Config & Entry Point | ⬜ Chưa bắt đầu |
@@ -510,9 +510,9 @@ Tương tự pattern trên.
 
 ### Kiểm tra Phase 4
 
-- [ ] Repository không có business logic
-- [ ] Mapper tách riêng (không nằm trong repository)
-- [ ] Không import domain từ entity (chỉ entity biết về domain qua mapper)
+- [x] Repository không có business logic ✅
+- [x] Mapper tách riêng (không nằm trong repository) ✅
+- [x] Không import domain từ entity (chỉ entity biết về domain qua mapper) ✅
 
 ---
 
@@ -545,9 +545,9 @@ class MinioStorageAdapter:
 
 ### Kiểm tra Phase 5
 
-- [ ] `generate_pointer()` deterministic — cùng input → cùng output
-- [ ] Không lưu binary vào DB (chỉ lưu pointer)
-- [ ] Error handling đầy đủ cho minio exceptions
+- [x] `generate_pointer()` deterministic — cùng input → cùng output ✅
+- [x] Không lưu binary vào DB (chỉ lưu pointer) ✅
+- [x] Error handling đầy đủ cho minio exceptions ✅ (S3Error.code == "NoSuchKey" handled)
 
 ---
 
@@ -592,10 +592,10 @@ class AuthorizationService:
 
 ### Kiểm tra Phase 6
 
-- [ ] Owner bypass ACL
-- [ ] PUBLIC object bypass READ/DOWNLOAD
-- [ ] `PermissionDeniedException` raised khi không có quyền
-- [ ] Không có DB logic trong service này — chỉ gọi port
+- [x] Owner bypass ACL ✅
+- [x] PUBLIC object bypass READ/DOWNLOAD ✅
+- [x] `PermissionDeniedException` raised khi không có quyền ✅
+- [x] Không có DB logic trong service này — chỉ gọi port ✅
 
 ---
 
@@ -680,11 +680,15 @@ Steps:
 
 ### Kiểm tra Phase 7
 
-- [ ] Authorization check trước khi mọi thao tác
-- [ ] Audit ghi sau mỗi thao tác thành công
-- [ ] Không có logic DB trong UseCase — chỉ gọi port
-- [ ] CreateObject: nếu DB fail sau khi upload blob → log để cleanup sau
-- [ ] Transaction scope rõ ràng
+- [x] Authorization check trước khi mọi thao tác ✅
+- [x] Audit ghi sau mỗi thao tác thành công ✅ (AuditService swallows exceptions)
+- [x] Không có logic DB trong UseCase — chỉ gọi port ✅
+- [x] CreateObject: nếu DB fail sau khi upload blob → log warning với object_id + pointer ✅
+- [x] Transaction scope rõ ràng ✅ (blob IO ngoài tx, tất cả DB ops trong `async with self._tx()`)
+
+**Thay đổi so với plan gốc (Phase 4):**
+- Repositories đã được sửa để dùng `AsyncSessionFactory.current()` thay vì `session_factory()`
+- Pattern này đảm bảo tất cả repo calls trong cùng transaction context dùng chung một session
 
 ---
 
