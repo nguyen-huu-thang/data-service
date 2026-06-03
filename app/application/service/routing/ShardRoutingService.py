@@ -1,4 +1,4 @@
-from core.config.runtime import RuntimeConfig
+from xime.core.config.runtime import RuntimeConfig
 
 
 class ShardRoutingService:

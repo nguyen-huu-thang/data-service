@@ -1,5 +1,5 @@
 from sqlalchemy import select
-from starters.sqlalchemy.session import AsyncSessionFactory
+from xime.starters.sqlalchemy.session import AsyncSessionFactory
 
 from app.domain.object.DataObject import DataObject
 from app.infrastructure.persistence.entity.DataObjectEntity import DataObjectEntity

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from starters.sqlalchemy.session import AsyncSessionFactory
+from xime.starters.sqlalchemy.session import AsyncSessionFactory
 
 from app.common.util.IdGenerator import generate_id
 from app.infrastructure.persistence.entity.ObjectAuditEntity import ObjectAuditEntity

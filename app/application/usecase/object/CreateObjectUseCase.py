@@ -2,7 +2,7 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 
-from core.transaction.manager import TransactionManager
+from xime.core.transaction.manager import TransactionManager
 
 from app.application.dto.object.CreateObjectCommand import CreateObjectCommand
 from app.application.dto.object.CreateObjectResult import CreateObjectResult

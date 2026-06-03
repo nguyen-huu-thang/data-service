@@ -1,4 +1,4 @@
-from core.transaction.manager import TransactionManager
+from xime.core.transaction.manager import TransactionManager
 
 from app.application.dto.object.GetObjectQuery import GetObjectQuery
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort

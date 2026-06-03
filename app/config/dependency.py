@@ -1,6 +1,6 @@
-from core.config.binding import BindingConfig
-from core.transaction.manager import TransactionManager
-from starters.sqlalchemy import SqlAlchemyTransactionManager
+from xime.core.config.binding import BindingConfig
+from xime.core.transaction.manager import TransactionManager
+from xime.starters.sqlalchemy import SqlAlchemyTransactionManager
 
 from app.application.port.outbound.audit.SaveAuditPort import SaveAuditPort
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort

@@ -1,5 +1,5 @@
 from sqlalchemy import func, select
-from starters.sqlalchemy.session import AsyncSessionFactory
+from xime.starters.sqlalchemy.session import AsyncSessionFactory
 
 from app.domain.object.ObjectVersion import ObjectVersion
 from app.infrastructure.persistence.entity.ObjectVersionEntity import ObjectVersionEntity

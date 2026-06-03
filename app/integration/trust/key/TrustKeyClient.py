@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 
 import grpc.aio
-from core.config.runtime import RuntimeConfig
+from xime.core.config.runtime import RuntimeConfig
 
 from app.domain.key.KeyContext import KeyContext
 from app.integration.trust.generated.trust_key_service_pb2 import GetVerificationKeysRequest

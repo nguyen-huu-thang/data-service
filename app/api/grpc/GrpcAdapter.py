@@ -1,7 +1,7 @@
 import logging
 
 import grpc.aio
-from core.config.runtime import RuntimeConfig
+from xime.core.config.runtime import RuntimeConfig
 
 from app.api.grpc.external.object.ObjectGrpcHandler import ObjectGrpcHandler
 from app.api.grpc.external.permission.PermissionGrpcHandler import PermissionGrpcHandler

@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 
 import jwt
-from core.config.runtime import RuntimeConfig
+from xime.core.config.runtime import RuntimeConfig
 
 from app.application.dto.auth.VerifiedClaims import VerifiedClaims
 from app.common.exception.InvalidTokenException import InvalidTokenException

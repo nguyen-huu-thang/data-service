@@ -1,7 +1,7 @@
 import asyncio
 import io
 
-from core.config.runtime import RuntimeConfig
+from xime.core.config.runtime import RuntimeConfig
 from minio import Minio
 from minio.error import S3Error
 

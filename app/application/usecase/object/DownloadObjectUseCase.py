@@ -1,4 +1,4 @@
-from core.transaction.manager import TransactionManager
+from xime.core.transaction.manager import TransactionManager
 
 from app.application.dto.object.DownloadObjectQuery import DownloadObjectQuery
 from app.application.dto.object.DownloadObjectResult import DownloadObjectResult
