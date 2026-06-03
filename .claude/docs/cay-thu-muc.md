@@ -45,7 +45,7 @@ data-service/
 │   │   │       ├── permission/
 │   │   │       ├── version/
 │   │   │       └── storage/
-│   │   │           └── BlobStoragePort.py   ← Abstraction cho MinIO/S3/filesystem
+│   │   │           └── BlobStoragePort.py   ← Abstraction cho local disk storage
 │   │   │
 │   │   ├── usecase/                         ← Use case implementations (scanned by DI)
 │   │   │   ├── object/
@@ -111,10 +111,8 @@ data-service/
 │       │       ├── permission/
 │       │       └── version/
 │       ├── storage/                         ← Blob storage implementations (scanned)
-│       │   ├── minio/
-│       │   │   └── MinioStorageAdapter.py   ← Implements BlobStoragePort
-│       │   ├── s3/
-│       │   └── filesystem/
+│       │   └── local/
+│       │       └── LocalDiskStorageAdapter.py   ← Implements BlobStoragePort
 │       ├── redis/
 │       ├── cache/
 │       └── event/                           ← Event publishing
@@ -153,7 +151,7 @@ dependency.exclude(
 )
 
 dependency.bind({
-    BlobStoragePort: MinioStorageAdapter,   # hoặc S3StorageAdapter
+    BlobStoragePort: LocalDiskStorageAdapter,
 })
 ```
 

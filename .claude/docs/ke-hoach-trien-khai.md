@@ -102,7 +102,7 @@ app/
   infrastructure/persistence/repository/object/
   infrastructure/persistence/repository/permission/
   infrastructure/persistence/repository/version/
-  infrastructure/storage/minio/
+  infrastructure/storage/local/
   infrastructure/redis/
   infrastructure/event/publisher/
 test/
@@ -205,7 +205,7 @@ class DataObject:
     object_type: ObjectType
     visibility: Visibility
     status: ObjectStatus
-    storage_provider: str             # MINIO, S3, FILESYSTEM
+    storage_provider: str             # LOCAL_DISK
     storage_pointer: str              # địa chỉ blob
     metadata_json: dict
     permission_version: int
@@ -518,24 +518,40 @@ Tương tự pattern trên.
 
 ## Phase 5 — Infrastructure: Blob Storage
 
-**Mục tiêu**: Implement `BlobStoragePort` với MinIO.
+**Mục tiêu**: Implement `BlobStoragePort` với LocalDiskStorageAdapter — lưu file trực tiếp vào disk, serve qua FastAPI.
 
-**`app/infrastructure/storage/minio/MinioStorageAdapter.py`**
+**`app/infrastructure/storage/local/LocalDiskStorageAdapter.py`**
 
 ```python
-from minio import Minio
+import aiofiles
+import os
+from pathlib import Path
 from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 
-class MinioStorageAdapter:
-    def __init__(self, minio_client: Minio, bucket_name: str) -> None:
-        self._client = minio_client
-        self._bucket = bucket_name
+class LocalDiskStorageAdapter:
+    def __init__(self, storage_root: str) -> None:
+        self._root = Path(storage_root)
 
     async def upload(self, pointer: str, data: bytes, content_type: str) -> None:
-        # minio.put_object(...)
+        path = self._root / pointer
+        path.parent.mkdir(parents=True, exist_ok=True)
+        async with aiofiles.open(path, 'wb') as f:
+            await f.write(data)
 
     async def download(self, pointer: str) -> bytes:
-        # minio.get_object(...)
+        path = self._root / pointer
+        if not path.exists():
+            raise FileNotFoundError(f"Blob not found: {pointer}")
+        async with aiofiles.open(path, 'rb') as f:
+            return await f.read()
+
+    async def delete(self, pointer: str) -> None:
+        path = self._root / pointer
+        if path.exists():
+            os.remove(path)
+
+    async def exists(self, pointer: str) -> bool:
+        return (self._root / pointer).exists()
 
     async def generate_pointer(self, owner_id: bytes, object_id: bytes, filename: str) -> str:
         owner_hex = owner_id.hex()[:8]
@@ -546,8 +562,8 @@ class MinioStorageAdapter:
 ### Kiểm tra Phase 5
 
 - [x] `generate_pointer()` deterministic — cùng input → cùng output ✅
-- [x] Không lưu binary vào DB (chỉ lưu pointer) ✅
-- [x] Error handling đầy đủ cho minio exceptions ✅ (S3Error.code == "NoSuchKey" handled)
+- [x] Không lưu binary vào DB (chỉ lưu relative path làm pointer) ✅
+- [x] Error handling đầy đủ cho `FileNotFoundError` ✅
 
 ---
 
@@ -927,7 +943,7 @@ class ObjectGrpcHandler(ObjectServiceServicer):
 ```python
 from xime import dependency
 from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
-from app.infrastructure.storage.minio.MinioStorageAdapter import MinioStorageAdapter
+from app.infrastructure.storage.local.LocalDiskStorageAdapter import LocalDiskStorageAdapter
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.infrastructure.persistence.repository.object.SqlAlchemyObjectRepository \
@@ -962,7 +978,7 @@ dependency.bind({
     SaveObjectPort:      SqlAlchemyObjectRepository,
     LoadPermissionPort:  SqlAlchemyPermissionRepository,
     SavePermissionPort:  SqlAlchemyPermissionRepository,
-    BlobStoragePort:     MinioStorageAdapter,
+    BlobStoragePort:     LocalDiskStorageAdapter,
 })
 ```
 
@@ -1910,13 +1926,13 @@ class AuditService:
 | --- | --- |
 | `test_object_repository.py` | Save + find_by_id với real DB |
 | `test_permission_repository.py` | ACL CRUD |
-| `test_minio_adapter.py` | Upload + download + delete |
+| `test_local_disk_adapter.py` | Upload + download + delete |
 | `test_create_object_usecase.py` | End-to-end: upload + metadata + permission |
 
 ### Lưu ý Testing
 
 - Unit test: không cần DB, dùng mock port
-- Integration test: dùng Docker Compose với PostgreSQL + MinIO thật
+- Integration test: dùng PostgreSQL thật (không cần MinIO hay external storage service)
 - Không mock DB trong integration test (kinh nghiệm từ identity-service: mock/prod divergence gây lỗi migration)
 
 ---

@@ -84,7 +84,7 @@ Capability: READ, WRITE, DELETE, SHARE, DOWNLOAD. Role: OWNER, EDITOR, VIEWER.
 ### Storage — Tách Metadata và Blob
 
 - **Metadata** → PostgreSQL (object info, permission, version)
-- **Blob** → MinIO / S3 / filesystem (binary thực tế)
+- **Blob** → Local disk filesystem — serve qua FastAPI (binary thực tế)
 
 ---
 

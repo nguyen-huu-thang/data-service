@@ -1,0 +1,85 @@
+Lời khuyên kiến trúc lưu trữ — Data Service
+============================================================
+
+Kết luận: Nên bỏ MinIO, chuyển sang lưu file trực tiếp vào disk và serve qua FastAPI (framework đang dùng nó chỉ bọc lấy fastapi).
+
+------------------------------------------------------------
+1. Kiến trúc shard không cần MinIO
+------------------------------------------------------------
+
+MinIO được thiết kế để giải quyết bài toán lưu trữ phân tán: nhiều app instance
+cùng truy cập một kho lưu trữ chung mà không cần chia sẻ ổ cứng vật lý.
+
+Data Service có mô hình hoàn toàn khác:
+- Mỗi shard chạy trên một máy chủ riêng biệt.
+- Mỗi shard có một database riêng và một kho lưu trữ riêng.
+- Không có instance nào chia sẻ storage với instance khác.
+
+Với ràng buộc này, MinIO không giải quyết bất kỳ vấn đề thực tế nào. Nó chỉ là
+một lớp trung gian không cần thiết, thêm độ phức tạp vận hành mà không mang lại
+lợi ích tương xứng.
+
+------------------------------------------------------------
+2. Phân quyền chặt hơn với disk trực tiếp
+------------------------------------------------------------
+
+MinIO thường được dùng theo mô hình presigned URL: app kiểm tra quyền một lần,
+sau đó cấp cho client một URL tạm thời để tải file trực tiếp từ MinIO, không qua app.
+
+Điều này tạo ra khoảng trống trong kiểm soát truy cập:
+
+  - Người dùng A được cấp URL lúc 10:00, hết hạn lúc 10:01.
+  - Admin thu hồi quyền của A lúc 10:00:30.
+  - A vẫn tải được file đến 10:01 vì URL đã tồn tại độc lập với hệ thống quyền.
+
+Khi FastAPI serve file trực tiếp, app kiểm tra quyền trên từng request. Việc thu
+hồi quyền có hiệu lực ngay lập tức, không có độ trễ hay cửa hậu nào.
+
+Với một dịch vụ quản lý data có phân quyền, đây là điểm khác biệt quan trọng.
+
+------------------------------------------------------------
+3. Hiệu năng tốt hơn hoặc tương đương
+------------------------------------------------------------
+
+Khi dùng MinIO làm proxy (app đọc từ MinIO rồi stream về client), mỗi request
+phải đi qua hai hop mạng: client → app → MinIO. Băng thông app bị tiêu tốn gấp đôi.
+
+Khi dùng presigned URL, client tải thẳng từ MinIO, giảm tải cho app — nhưng
+đánh đổi bằng phân quyền yếu hơn như đã phân tích ở trên.
+
+Với disk trực tiếp: app đọc file từ local disk (I/O cực nhanh, cùng máy) và
+stream về client. Chỉ một hop, không có latency mạng nội bộ giữa app và storage.
+
+------------------------------------------------------------
+4. Đơn giản hơn, dễ vận hành hơn
+------------------------------------------------------------
+
+Bỏ MinIO đồng nghĩa với:
+- Bớt một service cần khởi động, monitor, và backup.
+- Bớt một điểm lỗi trong startup (hiện tại app crash nếu MinIO chưa sẵn sàng).
+- Cấu hình đơn giản hơn: chỉ cần một đường dẫn thư mục thay vì endpoint, credentials, bucket.
+- Không cần MinIO chạy trong môi trường dev/test.
+
+------------------------------------------------------------
+Khi nào MinIO mới đáng dùng
+------------------------------------------------------------
+
+MinIO hợp lý nếu:
+- Nhiều app instance cùng chia sẻ một kho storage (không áp dụng ở đây).
+- Cần di chuyển lên Amazon S3 hoặc cloud storage mà không muốn thay code
+  (nếu đây là yêu cầu tương lai, cân nhắc lại).
+- Cần tính năng versioning hoặc replication tích hợp sẵn của MinIO.
+
+Với kiến trúc shard hiện tại, không có tiêu chí nào trong số này áp dụng.
+
+------------------------------------------------------------
+Hướng thay thế
+------------------------------------------------------------
+
+Thay MinioStorageAdapter bằng một LocalDiskStorageAdapter:
+- Lưu file vào một thư mục được cấu hình (vd: /data/storage hoặc D:\data\storage).
+- Serve file qua FastAPI với kiểm tra quyền trên từng request.
+- Lưu đường dẫn tương đối vào database, không phụ thuộc vào vị trí mount.
+
+Interface BlobStoragePort giữ nguyên — chỉ đổi implementation. Phần còn lại
+của ứng dụng không cần thay đổi.

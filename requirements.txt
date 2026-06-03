@@ -19,8 +19,6 @@ grpcio>=1.62
 grpcio-tools>=1.62
 protobuf>=5.0
 
-# Blob Storage
-minio>=7.2
 
 # Security / Auth
 pyjwt[crypto]>=2.8

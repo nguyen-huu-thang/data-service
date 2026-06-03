@@ -16,7 +16,7 @@ from app.infrastructure.persistence.repository.audit.SqlAlchemyAuditRepository i
 from app.infrastructure.persistence.repository.object.SqlAlchemyObjectRepository import SqlAlchemyObjectRepository
 from app.infrastructure.persistence.repository.permission.SqlAlchemyPermissionRepository import SqlAlchemyPermissionRepository
 from app.infrastructure.persistence.repository.version.SqlAlchemyVersionRepository import SqlAlchemyVersionRepository
-from app.infrastructure.storage.minio.MinioStorageAdapter import MinioStorageAdapter
+from app.infrastructure.storage.local.LocalDiskStorageAdapter import LocalDiskStorageAdapter
 
 # ── DI configuration for Data Service ────────────────────────────────────────
 #
@@ -42,7 +42,7 @@ dependency.register(
 
 dependency.scan(
     # Framework starters (uses __all__ to register only DI-managed singletons)
-    "starters.sqlalchemy",
+    "xime.starters.sqlalchemy",
     # Application services
     "app.application.service",
     # Core use cases (object CRUD + lifecycle)
@@ -55,6 +55,8 @@ dependency.scan(
     "app.infrastructure.storage",
     # Integration — Trust Service key sync
     "app.integration.trust.key",
+    # API — gRPC mappers
+    "app.api.grpc.mapper",
     # API — gRPC handlers (external + internal)
     "app.api.grpc.external",
     "app.api.grpc.internal.object",
@@ -75,7 +77,7 @@ dependency.bind({
     LoadVersionPort:       SqlAlchemyVersionRepository,
     SaveVersionPort:       SqlAlchemyVersionRepository,
     # Blob storage
-    BlobStoragePort:       MinioStorageAdapter,
+    BlobStoragePort:       LocalDiskStorageAdapter,
     # Audit
     SaveAuditPort:         SqlAlchemyAuditRepository,
 })

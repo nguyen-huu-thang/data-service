@@ -71,7 +71,7 @@ Tối thiểu hóa cross-shard call trong single request.
 
 ## 7. Không lưu binary trong database
 
-Database chỉ lưu metadata và `storage_pointer`. Binary file lưu trong blob storage (MinIO, S3, v.v.).
+Database chỉ lưu metadata và `storage_pointer`. Binary file lưu trên local disk, serve qua FastAPI với kiểm tra quyền trên từng request.
 
 Điều này giúp database nhỏ, scale dễ, backup dễ, đổi storage backend dễ.
 

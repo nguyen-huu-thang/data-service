@@ -37,7 +37,7 @@ Bảng trung tâm của toàn bộ hệ thống.
 | `visibility` | varchar | PRIVATE, INTERNAL, PUBLIC |
 | `status` | varchar | ACTIVE, ARCHIVED, SOFT_DELETED, PURGED |
 | `current_version_id` | binary(24) | Version hiện tại |
-| `storage_provider` | varchar | MINIO, CEPH, S3, FILESYSTEM |
+| `storage_provider` | varchar | LOCAL_DISK |
 | `storage_pointer` | varchar | Địa chỉ vật lý blob (VD: bucket-a/image/abc.jpg) |
 | `metadata_json` | json | Metadata mở rộng (VD: `{"width": 1920, "height": 1080}`) |
 | `permission_version` | int | Version ACL — dùng cho cache invalidation |
@@ -203,8 +203,8 @@ DATA_SHARD_02
 ```
 PostgreSQL
   └── data_object
-        └── storage_pointer
-              └── MinIO / S3
+        └── storage_pointer (relative path)
+              └── Local Disk (served via FastAPI)
                     └── binary file thực tế
 ```
 

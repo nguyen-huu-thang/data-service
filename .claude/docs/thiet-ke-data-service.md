@@ -51,8 +51,8 @@ object_type          (IMAGE, VIDEO, DOCUMENT, ARCHIVE, DATASET)
 visibility           (PRIVATE, INTERNAL, PUBLIC)
 status               (ACTIVE, ARCHIVED, SOFT_DELETED, PURGED)
 current_version_id
-storage_provider     (MINIO, CEPH, S3, FILESYSTEM)
-storage_pointer      (địa chỉ vật lý blob — không lưu binary)
+storage_provider     (LOCAL_DISK)                   (filesystem adapter — serve qua FastAPI)
+storage_pointer      (đường dẫn tương đối trong thư mục storage — không lưu binary)
 metadata_json        (metadata mở rộng, không chứa business data)
 permission_version   (cache invalidation)
 created_at
@@ -110,15 +110,15 @@ Data Service tách riêng **Metadata** và **Blob**:
 ### Metadata (PostgreSQL)
 - object id, owner, permission, tags, visibility, type
 
-### Blob (MinIO / S3 / Filesystem / Ceph)
+### Blob (Local Disk — served via FastAPI)
+
 - Binary content thực tế
 
-Metadata chứa `storage_pointer` — không chứa binary.
+Metadata chứa `storage_pointer` (đường dẫn tương đối) — không chứa binary.
 
 Ví dụ storage pointer:
 ```
-storage://blob/abc123
-bucket/path/file
+ab12cd34/ef56789a.../avatar.jpg
 ```
 
 ---
