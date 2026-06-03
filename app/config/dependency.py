@@ -10,7 +10,7 @@ from app.application.port.outbound.permission.SavePermissionPort import SavePerm
 from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.port.outbound.version.SaveVersionPort import SaveVersionPort
-from app.infrastructure.persistence.repository.audit.NoopAuditRepository import NoopAuditRepository
+from app.infrastructure.persistence.repository.audit.SqlAlchemyAuditRepository import SqlAlchemyAuditRepository
 from app.infrastructure.persistence.repository.object.SqlAlchemyObjectRepository import SqlAlchemyObjectRepository
 from app.infrastructure.persistence.repository.permission.SqlAlchemyPermissionRepository import SqlAlchemyPermissionRepository
 from app.infrastructure.persistence.repository.version.SqlAlchemyVersionRepository import SqlAlchemyVersionRepository
@@ -34,16 +34,19 @@ dependency.scan(
     "starters.sqlalchemy",
     # Application services
     "app.application.service",
-    # Core use cases (object CRUD)
+    # Core use cases (object CRUD + lifecycle)
     "app.application.usecase.object",
+    # Version use cases (Phase 11)
+    "app.application.usecase.version",
     # Infrastructure — DB repositories
     "app.infrastructure.persistence.repository",
     # Infrastructure — blob storage
     "app.infrastructure.storage",
     # Integration — Trust Service key sync
     "app.integration.trust.key",
-    # API — gRPC handlers
+    # API — gRPC handlers (external + internal)
     "app.api.grpc.external",
+    "app.api.grpc.internal.object",
 )
 
 # ── Protocol → Implementation bindings ───────────────────────────────────────
@@ -62,6 +65,6 @@ dependency.bind({
     SaveVersionPort:       SqlAlchemyVersionRepository,
     # Blob storage
     BlobStoragePort:       MinioStorageAdapter,
-    # Audit (NoopAuditRepository until Phase 12 replaces it)
-    SaveAuditPort:         NoopAuditRepository,
+    # Audit
+    SaveAuditPort:         SqlAlchemyAuditRepository,
 })

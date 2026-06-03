@@ -24,9 +24,9 @@
 | Phase 8 | Security — JWT Verification | ✅ Hoàn thành |
 | Phase 9 | API Layer — gRPC | ✅ Hoàn thành |
 | Phase 10 | Config & Entry Point | ✅ Hoàn thành |
-| Phase 11 | Advanced — Lifecycle & Versioning | ⬜ Chưa bắt đầu |
-| Phase 12 | Advanced — Audit | ⬜ Chưa bắt đầu |
-| Phase 13 | Testing | ⬜ Chưa bắt đầu |
+| Phase 11 | Advanced — Lifecycle & Versioning | ✅ Hoàn thành |
+| Phase 12 | Advanced — Audit | ✅ Hoàn thành |
+| Phase 13 | Testing | ✅ Hoàn thành |
 
 Cập nhật `⬜ / 🔄 / ✅` theo tiến độ thực tế.
 
@@ -990,44 +990,876 @@ if __name__ == "__main__":
 
 ## Phase 11 — Advanced: Lifecycle & Versioning
 
-Sau khi Phase 10 hoạt động ổn định.
+**Mục tiêu**: Hoàn thiện vòng đời object (archive, restore, purge) và hệ thống versioning (tạo version mới, xem lịch sử, tải version cụ thể).
 
-### 11.1 Object Lifecycle
+**Điều kiện**: Phase 10 đã hoạt động ổn định — gRPC server khởi động được, MVP use case chạy end-to-end.
+
+---
+
+### 11.1 Domain — Transition Guard
+
+Thêm lifecycle transition guard vào `DataObject` để đảm bảo state machine hợp lệ.
+
+**Cập nhật `app/domain/object/DataObject.py`**
+
+```python
+from app.common.constants.ObjectStatus import ObjectStatus
+
+# Transition hợp lệ — chỉ cho phép các chuyển đổi này
+VALID_TRANSITIONS: dict[ObjectStatus, set[ObjectStatus]] = {
+    ObjectStatus.ACTIVE:       {ObjectStatus.ARCHIVED, ObjectStatus.SOFT_DELETED},
+    ObjectStatus.ARCHIVED:     {ObjectStatus.ACTIVE,   ObjectStatus.SOFT_DELETED},
+    ObjectStatus.SOFT_DELETED: {ObjectStatus.ACTIVE,   ObjectStatus.PURGED},
+    ObjectStatus.PURGED:       set(),  # terminal state — không đổi được nữa
+}
+
+@dataclass(frozen=True)
+class DataObject:
+    # ... (các field giữ nguyên) ...
+
+    def can_transition_to(self, target: ObjectStatus) -> bool:
+        return target in VALID_TRANSITIONS.get(self.status, set())
+
+    def archive(self, now: datetime) -> 'DataObject':
+        # Caller phải check can_transition_to() trước khi gọi
+        return replace(self, status=ObjectStatus.ARCHIVED, updated_at=now)
+
+    def soft_delete(self, now: datetime) -> 'DataObject':
+        return replace(self, status=ObjectStatus.SOFT_DELETED, updated_at=now)
+
+    def restore(self, now: datetime) -> 'DataObject':
+        return replace(self, status=ObjectStatus.ACTIVE, updated_at=now)
+
+    def purge(self, now: datetime) -> 'DataObject':
+        # Đánh dấu PURGED — không xóa row (giữ audit trail)
+        return replace(self, status=ObjectStatus.PURGED, updated_at=now)
+
+    def update_version(self, version_id: bytes, now: datetime) -> 'DataObject':
+        return replace(self, current_version_id=version_id, updated_at=now)
+```
+
+**Thêm exception mới vào `app/common/exception/`**
+
+```python
+# InvalidObjectStateException.py
+class InvalidObjectStateException(Exception):
+    def __init__(self, current: str, target: str):
+        super().__init__(f"Cannot transition from {current} to {target}")
+```
+
+---
+
+### 11.2 DTOs — Commands & Queries
+
+> DTOs là data class thuần — excluded khỏi DI.
+
+**`app/application/dto/object/ArchiveObjectCommand.py`**
+
+```python
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class ArchiveObjectCommand:
+    requester_identity_id: bytes
+    object_id: bytes
+```
+
+Tương tự cho:
+- `RestoreObjectCommand.py` — `{requester_identity_id, object_id}`
+- `PurgeObjectCommand.py` — `{requester_identity_id, object_id}`
+
+**`app/application/dto/version/CreateVersionCommand.py`**
+
+```python
+@dataclass(frozen=True)
+class CreateVersionCommand:
+    requester_identity_id: bytes
+    object_id: bytes
+    filename: str
+    content_type: str        # MIME type, VD: image/jpeg
+    data: bytes              # binary content
+```
+
+Tương tự cho:
+- `GetVersionQuery.py` — `{requester_identity_id, object_id, version_id}`
+- `ListVersionsQuery.py` — `{requester_identity_id, object_id}`
+- `DownloadVersionQuery.py` — `{requester_identity_id, object_id, version_id}`
+
+---
+
+### 11.3 Port Interfaces — Version
+
+**`app/application/port/outbound/version/LoadVersionPort.py`**
+
+```python
+from typing import Protocol
+from app.domain.object.ObjectVersion import ObjectVersion
+
+class LoadVersionPort(Protocol):
+    async def find_by_id(self, version_id: bytes) -> ObjectVersion | None: ...
+    async def find_by_object(self, object_id: bytes) -> list[ObjectVersion]: ...
+    async def find_max_version_number(self, object_id: bytes) -> int: ...
+        # Trả 0 nếu chưa có version nào
+```
+
+**`app/application/port/outbound/version/SaveVersionPort.py`**
+
+```python
+class SaveVersionPort(Protocol):
+    async def save(self, version: ObjectVersion) -> None: ...
+```
+
+**Thêm method vào `SaveObjectPort`** (cần để purge xóa blob của nhiều version):
+
+```python
+# Không cần thêm — chỉ cần load versions rồi xóa từng blob qua BlobStoragePort
+```
+
+---
+
+### 11.4 Repository — Version
+
+**`app/infrastructure/persistence/repository/version/SqlAlchemyVersionRepository.py`**
+
+```python
+from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
+from app.application.port.outbound.version.SaveVersionPort import SaveVersionPort
+from app.infrastructure.persistence.mapper.ObjectVersionMapper import ObjectVersionMapper
+from app.infrastructure.persistence.entity.ObjectVersionEntity import ObjectVersionEntity
+from sqlalchemy import select, func
+
+class SqlAlchemyVersionRepository:
+    def __init__(self, session_factory) -> None:
+        self._session_factory = session_factory
+
+    async def find_by_id(self, version_id: bytes) -> ObjectVersion | None:
+        async with self._session_factory.current() as session:
+            entity = await session.get(ObjectVersionEntity, version_id)
+            return ObjectVersionMapper.to_domain(entity) if entity else None
+
+    async def find_by_object(self, object_id: bytes) -> list[ObjectVersion]:
+        async with self._session_factory.current() as session:
+            stmt = (
+                select(ObjectVersionEntity)
+                .where(ObjectVersionEntity.object_id == object_id)
+                .order_by(ObjectVersionEntity.version_number.desc())
+            )
+            result = await session.execute(stmt)
+            return [ObjectVersionMapper.to_domain(e) for e in result.scalars()]
+
+    async def find_max_version_number(self, object_id: bytes) -> int:
+        async with self._session_factory.current() as session:
+            stmt = select(func.max(ObjectVersionEntity.version_number)).where(
+                ObjectVersionEntity.object_id == object_id
+            )
+            result = await session.execute(stmt)
+            return result.scalar() or 0
+
+    async def save(self, version: ObjectVersion) -> None:
+        async with self._session_factory.current() as session:
+            entity = ObjectVersionMapper.to_entity(version)
+            session.add(entity)
+```
+
+**`app/infrastructure/persistence/mapper/ObjectVersionMapper.py`**
+
+```python
+from app.domain.object.ObjectVersion import ObjectVersion
+from app.infrastructure.persistence.entity.ObjectVersionEntity import ObjectVersionEntity
+from datetime import timezone
+
+class ObjectVersionMapper:
+    @staticmethod
+    def to_domain(entity: ObjectVersionEntity) -> ObjectVersion:
+        return ObjectVersion(
+            version_id=entity.id,
+            object_id=entity.object_id,
+            version_number=entity.version_number,
+            storage_pointer=entity.storage_pointer,
+            content_hash=entity.content_hash,
+            content_size=entity.content_size,
+            mime_type=entity.mime_type,
+            created_by=entity.created_by,
+            created_at=entity.created_at.replace(tzinfo=timezone.utc),
+        )
+
+    @staticmethod
+    def to_entity(domain: ObjectVersion) -> ObjectVersionEntity:
+        return ObjectVersionEntity(
+            id=domain.version_id,
+            object_id=domain.object_id,
+            version_number=domain.version_number,
+            storage_pointer=domain.storage_pointer,
+            content_hash=domain.content_hash,
+            content_size=domain.content_size,
+            mime_type=domain.mime_type,
+            created_by=domain.created_by,
+            created_at=domain.created_at,
+        )
+```
+
+---
+
+### 11.5 Lifecycle Use Cases
+
+#### ArchiveObjectUseCase
 
 **`app/application/usecase/object/ArchiveObjectUseCase.py`**
 
+```python
+from datetime import datetime, timezone
+from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
+from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
+from app.application.service.authorization.AuthorizationService import AuthorizationService
+from app.application.service.audit.AuditService import AuditService
+from app.application.dto.object.ArchiveObjectCommand import ArchiveObjectCommand
+from app.common.constants.Capability import Capability
+from app.common.constants.ObjectStatus import ObjectStatus
+from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
+from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
+
+class ArchiveObjectUseCase:
+    def __init__(
+        self,
+        load_object_port: LoadObjectPort,
+        save_object_port: SaveObjectPort,
+        authorization_service: AuthorizationService,
+        audit_service: AuditService,
+    ) -> None:
+        self._load = load_object_port
+        self._save = save_object_port
+        self._auth = authorization_service
+        self._audit = audit_service
+
+    async def execute(self, command: ArchiveObjectCommand) -> None:
+        obj = await self._load.find_by_id(command.object_id)
+        if obj is None:
+            raise ObjectNotFoundException(command.object_id)
+
+        if not obj.can_transition_to(ObjectStatus.ARCHIVED):
+            raise InvalidObjectStateException(obj.status.value, ObjectStatus.ARCHIVED.value)
+
+        await self._auth.require_capability(
+            command.requester_identity_id, obj, Capability.DELETE
+        )
+
+        now = datetime.now(timezone.utc)
+        updated = obj.archive(now)
+        await self._save.update(updated)
+        await self._audit.record(obj.object_id, command.requester_identity_id, "ARCHIVE")
 ```
-Steps: verify DELETE cap → obj.archive(now) → SaveObjectPort.update()
-```
+
+#### RestoreObjectUseCase
 
 **`app/application/usecase/object/RestoreObjectUseCase.py`**
 
+```python
+class RestoreObjectUseCase:
+    def __init__(
+        self,
+        load_object_port: LoadObjectPort,
+        save_object_port: SaveObjectPort,
+        audit_service: AuditService,
+    ) -> None:
+        self._load = load_object_port
+        self._save = save_object_port
+        self._audit = audit_service
+
+    async def execute(self, command: RestoreObjectCommand) -> None:
+        obj = await self._load.find_by_id(command.object_id)
+        if obj is None:
+            raise ObjectNotFoundException(command.object_id)
+
+        if not obj.can_transition_to(ObjectStatus.ACTIVE):
+            raise InvalidObjectStateException(obj.status.value, ObjectStatus.ACTIVE.value)
+
+        # Chỉ OWNER mới restore được — không dùng capability, check ownership trực tiếp
+        if obj.owner_identity_id != command.requester_identity_id:
+            raise PermissionDeniedException()
+
+        now = datetime.now(timezone.utc)
+        updated = obj.restore(now)
+        await self._save.update(updated)
+        await self._audit.record(obj.object_id, command.requester_identity_id, "RESTORE")
 ```
-Steps: verify OWNER (chỉ OWNER mới restore) → obj.restore(now) → update
-```
+
+#### PurgeObjectUseCase
 
 **`app/application/usecase/object/PurgeObjectUseCase.py`**
 
-```
-Steps: chỉ chạy với status=SOFT_DELETED → xóa blob → xóa metadata
-Lưu ý: purge là bất khả nghịch — cần guard nghiêm ngặt
+```python
+import logging
+from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
+from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
+
+_log = logging.getLogger(__name__)
+
+class PurgeObjectUseCase:
+    def __init__(
+        self,
+        load_object_port: LoadObjectPort,
+        save_object_port: SaveObjectPort,
+        load_version_port: LoadVersionPort,
+        blob_storage_port: BlobStoragePort,
+        audit_service: AuditService,
+    ) -> None:
+        self._load = load_object_port
+        self._save = save_object_port
+        self._load_version = load_version_port
+        self._blob = blob_storage_port
+        self._audit = audit_service
+
+    async def execute(self, command: PurgeObjectCommand) -> None:
+        obj = await self._load.find_by_id(command.object_id)
+        if obj is None:
+            raise ObjectNotFoundException(command.object_id)
+
+        # Guard: chỉ SOFT_DELETED mới purge được
+        if not obj.can_transition_to(ObjectStatus.PURGED):
+            raise InvalidObjectStateException(obj.status.value, ObjectStatus.PURGED.value)
+
+        # Chỉ OWNER mới purge được
+        if obj.owner_identity_id != command.requester_identity_id:
+            raise PermissionDeniedException()
+
+        # Xóa blob của tất cả version trước khi đánh dấu PURGED
+        versions = await self._load_version.find_by_object(obj.object_id)
+        for version in versions:
+            try:
+                await self._blob.delete(version.storage_pointer)
+            except Exception:
+                _log.warning(
+                    "Failed to delete blob for version %s — pointer: %s",
+                    version.version_id.hex(), version.storage_pointer
+                )
+
+        # Xóa blob của object (nếu pointer khác với version hiện tại)
+        if obj.storage_pointer:
+            try:
+                await self._blob.delete(obj.storage_pointer)
+            except Exception:
+                _log.warning(
+                    "Failed to delete blob for object %s — pointer: %s",
+                    obj.object_id.hex(), obj.storage_pointer
+                )
+
+        # Đánh dấu PURGED trong DB — giữ row để có audit trail
+        now = datetime.now(timezone.utc)
+        purged = obj.purge(now)
+        await self._save.update(purged)
+        await self._audit.record(obj.object_id, command.requester_identity_id, "PURGE")
 ```
 
-### 11.2 Object Versioning
+> **Lưu ý**: Purge không xóa row khỏi DB — chỉ đổi status thành PURGED. Row cần giữ lại để audit trail hoạt động. Blob storage mới thực sự xóa dữ liệu.
+
+---
+
+### 11.6 Versioning Use Cases
+
+#### CreateVersionUseCase
 
 **`app/application/usecase/version/CreateVersionUseCase.py`**
 
-```
-Steps:
-  1. Verify WRITE cap
-  2. Upload blob mới
-  3. Create ObjectVersion (version_number = current_max + 1)
-  4. Update DataObject.current_version_id
-  5. Save version + update object (transaction)
+```python
+import hashlib
+from dataclasses import dataclass
+from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
+from app.application.port.outbound.version.SaveVersionPort import SaveVersionPort
+from app.common.util.IdGenerator import generate_id
+
+@dataclass(frozen=True)
+class CreateVersionResult:
+    version_id: bytes
+    version_number: int
+    content_hash: str
+
+class CreateVersionUseCase:
+    def __init__(
+        self,
+        load_object_port: LoadObjectPort,
+        save_object_port: SaveObjectPort,
+        load_version_port: LoadVersionPort,
+        save_version_port: SaveVersionPort,
+        blob_storage_port: BlobStoragePort,
+        authorization_service: AuthorizationService,
+        audit_service: AuditService,
+    ) -> None:
+        self._load = load_object_port
+        self._save = save_object_port
+        self._load_version = load_version_port
+        self._save_version = save_version_port
+        self._blob = blob_storage_port
+        self._auth = authorization_service
+        self._audit = audit_service
+
+    async def execute(self, command: CreateVersionCommand) -> CreateVersionResult:
+        obj = await self._load.find_by_id(command.object_id)
+        if obj is None:
+            raise ObjectNotFoundException(command.object_id)
+
+        if obj.status != ObjectStatus.ACTIVE:
+            raise InvalidObjectStateException(obj.status.value, "ACTIVE")
+
+        await self._auth.require_capability(
+            command.requester_identity_id, obj, Capability.WRITE
+        )
+
+        # Tính hash trước khi upload
+        content_hash = hashlib.sha256(command.data).hexdigest()
+        content_size = len(command.data)
+
+        # Upload blob trước — ngoài transaction DB
+        version_id = generate_id()
+        storage_pointer = await self._blob.generate_pointer(
+            obj.owner_identity_id, version_id, command.filename
+        )
+        await self._blob.upload(storage_pointer, command.data, command.content_type)
+
+        # Xác định version_number kế tiếp
+        max_version = await self._load_version.find_max_version_number(command.object_id)
+        next_version_number = max_version + 1
+
+        now = datetime.now(timezone.utc)
+        version = ObjectVersion(
+            version_id=version_id,
+            object_id=command.object_id,
+            version_number=next_version_number,
+            storage_pointer=storage_pointer,
+            content_hash=content_hash,
+            content_size=content_size,
+            mime_type=command.content_type,
+            created_by=command.requester_identity_id,
+            created_at=now,
+        )
+
+        # Transaction DB: save version + update object
+        try:
+            async with self._tx():
+                await self._save_version.save(version)
+                updated_obj = obj.update_version(version_id, now)
+                await self._save.update(updated_obj)
+        except Exception:
+            # DB fail sau khi đã upload blob → log để cleanup thủ công
+            _log.error(
+                "DB failed after blob upload — version_id: %s, pointer: %s",
+                version_id.hex(), storage_pointer
+            )
+            raise
+
+        await self._audit.record(command.object_id, command.requester_identity_id, "UPDATE")
+        return CreateVersionResult(
+            version_id=version_id,
+            version_number=next_version_number,
+            content_hash=content_hash,
+        )
 ```
 
+#### ListVersionsUseCase
+
 **`app/application/usecase/version/ListVersionsUseCase.py`**
+
+```python
+class ListVersionsUseCase:
+    def __init__(
+        self,
+        load_object_port: LoadObjectPort,
+        load_version_port: LoadVersionPort,
+        authorization_service: AuthorizationService,
+    ) -> None:
+        self._load = load_object_port
+        self._load_version = load_version_port
+        self._auth = authorization_service
+
+    async def execute(self, query: ListVersionsQuery) -> list[ObjectVersion]:
+        obj = await self._load.find_by_id(query.object_id)
+        if obj is None:
+            raise ObjectNotFoundException(query.object_id)
+
+        await self._auth.require_capability(
+            query.requester_identity_id, obj, Capability.READ
+        )
+
+        # find_by_object trả về sorted desc theo version_number (xem repository)
+        return await self._load_version.find_by_object(query.object_id)
+```
+
+#### GetVersionUseCase
+
 **`app/application/usecase/version/GetVersionUseCase.py`**
+
+```python
+class GetVersionUseCase:
+    def __init__(
+        self,
+        load_object_port: LoadObjectPort,
+        load_version_port: LoadVersionPort,
+        authorization_service: AuthorizationService,
+    ) -> None:
+        self._load = load_object_port
+        self._load_version = load_version_port
+        self._auth = authorization_service
+
+    async def execute(self, query: GetVersionQuery) -> ObjectVersion:
+        obj = await self._load.find_by_id(query.object_id)
+        if obj is None:
+            raise ObjectNotFoundException(query.object_id)
+
+        await self._auth.require_capability(
+            query.requester_identity_id, obj, Capability.READ
+        )
+
+        version = await self._load_version.find_by_id(query.version_id)
+        if version is None or version.object_id != query.object_id:
+            # Không tìm thấy hoặc version thuộc object khác — trả not found
+            raise ObjectNotFoundException(query.version_id)
+
+        return version
+```
+
+#### DownloadVersionUseCase
+
+**`app/application/usecase/version/DownloadVersionUseCase.py`**
+
+```python
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class DownloadVersionResult:
+    data: bytes
+    mime_type: str
+    content_hash: str
+    version_number: int
+
+class DownloadVersionUseCase:
+    def __init__(
+        self,
+        load_object_port: LoadObjectPort,
+        load_version_port: LoadVersionPort,
+        blob_storage_port: BlobStoragePort,
+        authorization_service: AuthorizationService,
+        audit_service: AuditService,
+    ) -> None:
+        self._load = load_object_port
+        self._load_version = load_version_port
+        self._blob = blob_storage_port
+        self._auth = authorization_service
+        self._audit = audit_service
+
+    async def execute(self, query: DownloadVersionQuery) -> DownloadVersionResult:
+        obj = await self._load.find_by_id(query.object_id)
+        if obj is None:
+            raise ObjectNotFoundException(query.object_id)
+
+        await self._auth.require_capability(
+            query.requester_identity_id, obj, Capability.DOWNLOAD
+        )
+
+        version = await self._load_version.find_by_id(query.version_id)
+        if version is None or version.object_id != query.object_id:
+            raise ObjectNotFoundException(query.version_id)
+
+        data = await self._blob.download(version.storage_pointer)
+        await self._audit.record(
+            obj.object_id, query.requester_identity_id, "DOWNLOAD_VERSION"
+        )
+
+        return DownloadVersionResult(
+            data=data,
+            mime_type=version.mime_type,
+            content_hash=version.content_hash,
+            version_number=version.version_number,
+        )
+```
+
+---
+
+### 11.7 gRPC Extensions
+
+#### Proto — Versioning
+
+**`app/api/grpc/proto/version_service.proto`**
+
+```protobuf
+syntax = "proto3";
+package data.version;
+
+service VersionService {
+  rpc CreateVersion    (CreateVersionRequest)    returns (CreateVersionResponse);
+  rpc ListVersions     (ListVersionsRequest)     returns (ListVersionsResponse);
+  rpc GetVersion       (GetVersionRequest)       returns (GetVersionResponse);
+  rpc DownloadVersion  (DownloadVersionRequest)  returns (DownloadVersionResponse);
+}
+
+message CreateVersionRequest {
+  string requester_identity_id = 1;
+  string object_id             = 2;
+  string filename              = 3;
+  string content_type          = 4;
+  bytes  data                  = 5;
+}
+
+message CreateVersionResponse {
+  string version_id      = 1;
+  int32  version_number  = 2;
+  string content_hash    = 3;
+}
+
+message ListVersionsRequest {
+  string requester_identity_id = 1;
+  string object_id             = 2;
+}
+
+message VersionInfo {
+  string version_id      = 1;
+  int32  version_number  = 2;
+  string content_hash    = 3;
+  int64  content_size    = 4;
+  string mime_type       = 5;
+  string created_by      = 6;
+  string created_at      = 7;
+}
+
+message ListVersionsResponse {
+  repeated VersionInfo versions = 1;
+}
+
+message GetVersionRequest {
+  string requester_identity_id = 1;
+  string object_id             = 2;
+  string version_id            = 3;
+}
+
+message GetVersionResponse {
+  VersionInfo version = 1;
+}
+
+message DownloadVersionRequest {
+  string requester_identity_id = 1;
+  string object_id             = 2;
+  string version_id            = 3;
+}
+
+message DownloadVersionResponse {
+  bytes  data           = 1;
+  string mime_type      = 2;
+  string content_hash   = 3;
+  int32  version_number = 4;
+}
+```
+
+#### Proto — Lifecycle extensions cho ObjectService
+
+**Thêm vào `app/api/grpc/proto/object_service.proto`**
+
+```protobuf
+service ObjectService {
+  // --- existing ---
+  rpc CreateObject (CreateObjectRequest) returns (CreateObjectResponse);
+  rpc GetObject    (GetObjectRequest)    returns (GetObjectResponse);
+  rpc DeleteObject (DeleteObjectRequest) returns (DeleteObjectResponse);
+  rpc DownloadObject (DownloadObjectRequest) returns (DownloadObjectResponse);
+
+  // --- phase 11 ---
+  rpc ArchiveObject (ArchiveObjectRequest) returns (ArchiveObjectResponse);
+  rpc RestoreObject (RestoreObjectRequest) returns (RestoreObjectResponse);
+  // PurgeObject chỉ expose qua internal gRPC — không có ở đây
+}
+
+message ArchiveObjectRequest {
+  string requester_identity_id = 1;
+  string object_id             = 2;
+}
+
+message ArchiveObjectResponse {
+  string object_id = 1;
+  string status    = 2;   // "ARCHIVED"
+}
+
+message RestoreObjectRequest {
+  string requester_identity_id = 1;
+  string object_id             = 2;
+}
+
+message RestoreObjectResponse {
+  string object_id = 1;
+  string status    = 2;   // "ACTIVE"
+}
+```
+
+**Internal proto — Purge**
+
+```protobuf
+// app/api/grpc/proto/internal/object_internal_service.proto
+service ObjectInternalService {
+  rpc PurgeObject (PurgeObjectRequest) returns (PurgeObjectResponse);
+}
+
+message PurgeObjectRequest {
+  string requester_identity_id = 1;
+  string object_id             = 2;
+}
+
+message PurgeObjectResponse {
+  string object_id = 1;
+}
+```
+
+#### gRPC Handler — Version
+
+**`app/api/grpc/external/version/VersionGrpcHandler.py`**
+
+```python
+import grpc
+from app.application.usecase.version.CreateVersionUseCase import CreateVersionUseCase
+from app.application.usecase.version.ListVersionsUseCase import ListVersionsUseCase
+from app.application.usecase.version.GetVersionUseCase import GetVersionUseCase
+from app.application.usecase.version.DownloadVersionUseCase import DownloadVersionUseCase
+from app.application.service.authorization.JwtVerificationService import JwtVerificationService
+from app.api.grpc.mapper.VersionGrpcMapper import VersionGrpcMapper
+
+class VersionGrpcHandler(VersionServiceServicer):
+    def __init__(
+        self,
+        create_version_use_case: CreateVersionUseCase,
+        list_versions_use_case: ListVersionsUseCase,
+        get_version_use_case: GetVersionUseCase,
+        download_version_use_case: DownloadVersionUseCase,
+        jwt_verification_service: JwtVerificationService,
+        mapper: VersionGrpcMapper,
+    ) -> None:
+        self._create = create_version_use_case
+        self._list = list_versions_use_case
+        self._get = get_version_use_case
+        self._download = download_version_use_case
+        self._jwt = jwt_verification_service
+        self._mapper = mapper
+
+    async def CreateVersion(self, request, context):
+        try:
+            claims = await self._jwt.verify(self._extract_token(context))
+            command = self._mapper.to_create_command(request, claims.identity_id)
+            result = await self._create.execute(command)
+            return self._mapper.to_create_response(result)
+        except PermissionDeniedException:
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Permission denied")
+        except ObjectNotFoundException as e:
+            await context.abort(grpc.StatusCode.NOT_FOUND, str(e))
+        except InvalidObjectStateException as e:
+            await context.abort(grpc.StatusCode.FAILED_PRECONDITION, str(e))
+        except Exception:
+            await context.abort(grpc.StatusCode.INTERNAL, "Internal error")
+
+    # ListVersions, GetVersion, DownloadVersion — pattern tương tự
+```
+
+#### gRPC Handler — Extend ObjectGrpcHandler
+
+Thêm method vào `ObjectGrpcHandler` hiện có:
+
+```python
+async def ArchiveObject(self, request, context):
+    try:
+        claims = await self._jwt.verify(self._extract_token(context))
+        command = ArchiveObjectCommand(
+            requester_identity_id=claims.identity_id,
+            object_id=bytes.fromhex(request.object_id),
+        )
+        await self._archive_use_case.execute(command)
+        return ArchiveObjectResponse(object_id=request.object_id, status="ARCHIVED")
+    except InvalidObjectStateException as e:
+        await context.abort(grpc.StatusCode.FAILED_PRECONDITION, str(e))
+    except PermissionDeniedException:
+        await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Permission denied")
+    except ObjectNotFoundException as e:
+        await context.abort(grpc.StatusCode.NOT_FOUND, str(e))
+    except Exception:
+        await context.abort(grpc.StatusCode.INTERNAL, "Internal error")
+
+# RestoreObject — pattern tương tự
+```
+
+#### gRPC Handler — Purge (Internal)
+
+**`app/api/grpc/internal/object/ObjectInternalGrpcHandler.py`**
+
+```python
+class ObjectInternalGrpcHandler(ObjectInternalServiceServicer):
+    def __init__(
+        self,
+        purge_object_use_case: PurgeObjectUseCase,
+    ) -> None:
+        self._purge = purge_object_use_case
+
+    async def PurgeObject(self, request, context):
+        # Internal endpoint — verify service identity qua mTLS (không dùng JWT user)
+        try:
+            command = PurgeObjectCommand(
+                requester_identity_id=bytes.fromhex(request.requester_identity_id),
+                object_id=bytes.fromhex(request.object_id),
+            )
+            await self._purge.execute(command)
+            return PurgeObjectResponse(object_id=request.object_id)
+        except InvalidObjectStateException as e:
+            await context.abort(grpc.StatusCode.FAILED_PRECONDITION, str(e))
+        except PermissionDeniedException:
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Permission denied")
+        except ObjectNotFoundException as e:
+            await context.abort(grpc.StatusCode.NOT_FOUND, str(e))
+        except Exception:
+            await context.abort(grpc.StatusCode.INTERNAL, "Internal error")
+```
+
+---
+
+### 11.8 Cập nhật DI Configuration
+
+**`app/config/dependency.py`** — thêm binding mới:
+
+```python
+from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
+from app.application.port.outbound.version.SaveVersionPort import SaveVersionPort
+from app.infrastructure.persistence.repository.version.SqlAlchemyVersionRepository \
+    import SqlAlchemyVersionRepository
+
+# Trong dependency.bind({...}):
+LoadVersionPort: SqlAlchemyVersionRepository,
+SaveVersionPort: SqlAlchemyVersionRepository,
+```
+
+Thêm internal handler vào scan:
+
+```python
+dependency.scan(
+    # ... existing ...
+    "app.api.grpc.internal",   # thêm nếu chưa có
+)
+```
+
+---
+
+### Kiểm tra Phase 11
+
+**Lifecycle:**
+- [ ] `ArchiveObjectUseCase`: chỉ `ACTIVE` mới archive được — `SOFT_DELETED` → archive phải fail
+- [ ] `RestoreObjectUseCase`: `ARCHIVED` và `SOFT_DELETED` đều restore được → `ACTIVE`
+- [ ] `RestoreObjectUseCase`: non-owner gọi restore → `PermissionDeniedException`
+- [ ] `PurgeObjectUseCase`: chỉ `SOFT_DELETED` mới purge được — `ACTIVE` → purge phải fail với `InvalidObjectStateException`
+- [ ] `PurgeObjectUseCase`: blob bị xóa trước khi DB update — nếu blob fail thì vẫn xóa được (log warning)
+- [ ] `PurgeObjectUseCase`: row trong DB vẫn còn sau purge (status = `PURGED`, không xóa row)
+- [ ] `DataObject.can_transition_to(PURGED)` trả `False` khi status là `ACTIVE`
+
+**Versioning:**
+- [ ] `CreateVersionUseCase`: blob upload trước transaction — nếu DB fail → log với version_id + pointer
+- [ ] `CreateVersionUseCase`: `version_number` tăng dần đúng (1, 2, 3, ...) — không có gap hay duplicate
+- [ ] `CreateVersionUseCase`: `DataObject.current_version_id` được cập nhật sau khi tạo version mới
+- [ ] `GetVersionUseCase`: version thuộc object khác → `ObjectNotFoundException` (không leak thông tin)
+- [ ] `DownloadVersionUseCase`: verify `version.object_id == query.object_id` trước khi download
+- [ ] `ListVersionsUseCase`: kết quả sorted desc theo `version_number`
+
+**gRPC:**
+- [ ] `PurgeObject` chỉ expose qua internal handler — không có trong `ObjectService` public
+- [ ] `InvalidObjectStateException` → `FAILED_PRECONDITION` (không phải `INTERNAL`)
+- [ ] `VersionGrpcHandler` inject đúng 4 use case + jwt service + mapper
 
 ---
 

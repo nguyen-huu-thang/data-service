@@ -2,13 +2,20 @@ import logging
 
 import grpc
 
+from app.api.grpc.generated.object_service_pb2 import ArchiveObjectResponse, RestoreObjectResponse
 from app.api.grpc.generated.object_service_pb2_grpc import ObjectServiceServicer
 from app.api.grpc.mapper.ObjectGrpcMapper import ObjectGrpcMapper
+from app.application.dto.object.ArchiveObjectCommand import ArchiveObjectCommand
+from app.application.dto.object.RestoreObjectCommand import RestoreObjectCommand
 from app.application.service.authorization.JwtVerificationService import JwtVerificationService
+from app.application.usecase.object.ArchiveObjectUseCase import ArchiveObjectUseCase
 from app.application.usecase.object.CreateObjectUseCase import CreateObjectUseCase
 from app.application.usecase.object.DeleteObjectUseCase import DeleteObjectUseCase
 from app.application.usecase.object.DownloadObjectUseCase import DownloadObjectUseCase
 from app.application.usecase.object.GetObjectUseCase import GetObjectUseCase
+from app.application.usecase.object.RestoreObjectUseCase import RestoreObjectUseCase
+from app.common.constants.ObjectStatus import ObjectStatus
+from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
 from app.common.exception.InvalidTokenException import InvalidTokenException
 from app.common.exception.ObjectAlreadyDeletedException import ObjectAlreadyDeletedException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
@@ -24,12 +31,16 @@ class ObjectGrpcHandler(ObjectServiceServicer):
         get_object_use_case: GetObjectUseCase,
         download_object_use_case: DownloadObjectUseCase,
         delete_object_use_case: DeleteObjectUseCase,
+        archive_object_use_case: ArchiveObjectUseCase,
+        restore_object_use_case: RestoreObjectUseCase,
         jwt_verification_service: JwtVerificationService,
     ) -> None:
         self._create = create_object_use_case
         self._get = get_object_use_case
         self._download = download_object_use_case
         self._delete = delete_object_use_case
+        self._archive = archive_object_use_case
+        self._restore = restore_object_use_case
         self._jwt = jwt_verification_service
         self._mapper = ObjectGrpcMapper()  # utility class, not DI-managed
 
@@ -107,4 +118,52 @@ class ObjectGrpcHandler(ObjectServiceServicer):
             await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Permission denied")
         except Exception:
             _log.exception("Unexpected error in DeleteObject")
+            await context.abort(grpc.StatusCode.INTERNAL, "Internal server error")
+
+    async def ArchiveObject(self, request, context):
+        try:
+            claims = await self._jwt.verify(self._extract_token(context))
+            command = ArchiveObjectCommand(
+                requester_identity_id=claims.identity_id,
+                object_id=request.object_id,
+            )
+            await self._archive.execute(command)
+            return ArchiveObjectResponse(
+                object_id=request.object_id,
+                status=ObjectStatus.ARCHIVED.value,
+            )
+        except InvalidTokenException as e:
+            await context.abort(grpc.StatusCode.UNAUTHENTICATED, str(e))
+        except ObjectNotFoundException:
+            await context.abort(grpc.StatusCode.NOT_FOUND, "Object not found")
+        except InvalidObjectStateException as e:
+            await context.abort(grpc.StatusCode.FAILED_PRECONDITION, str(e))
+        except PermissionDeniedException:
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Permission denied")
+        except Exception:
+            _log.exception("Unexpected error in ArchiveObject")
+            await context.abort(grpc.StatusCode.INTERNAL, "Internal server error")
+
+    async def RestoreObject(self, request, context):
+        try:
+            claims = await self._jwt.verify(self._extract_token(context))
+            command = RestoreObjectCommand(
+                requester_identity_id=claims.identity_id,
+                object_id=request.object_id,
+            )
+            await self._restore.execute(command)
+            return RestoreObjectResponse(
+                object_id=request.object_id,
+                status=ObjectStatus.ACTIVE.value,
+            )
+        except InvalidTokenException as e:
+            await context.abort(grpc.StatusCode.UNAUTHENTICATED, str(e))
+        except ObjectNotFoundException:
+            await context.abort(grpc.StatusCode.NOT_FOUND, "Object not found")
+        except InvalidObjectStateException as e:
+            await context.abort(grpc.StatusCode.FAILED_PRECONDITION, str(e))
+        except PermissionDeniedException:
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Permission denied")
+        except Exception:
+            _log.exception("Unexpected error in RestoreObject")
             await context.abort(grpc.StatusCode.INTERNAL, "Internal server error")

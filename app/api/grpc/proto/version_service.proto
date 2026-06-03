@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package data.v1;
+
+// Version management — create new versions, list history, download specific version.
+// requester_identity_id is NOT in request fields; it is extracted from the
+// Bearer JWT in the Authorization metadata header by the handler.
+service VersionService {
+  rpc CreateVersion   (CreateVersionRequest)   returns (CreateVersionResponse);
+  rpc ListVersions    (ListVersionsRequest)    returns (ListVersionsResponse);
+  rpc GetVersion      (GetVersionRequest)      returns (GetVersionResponse);
+  rpc DownloadVersion (DownloadVersionRequest) returns (DownloadVersionResponse);
+}
+
+// ── Create ────────────────────────────────────────────────────────────────
+
+message CreateVersionRequest {
+  bytes  object_id    = 1;  // 24-byte KSUID
+  string filename     = 2;
+  string content_type = 3;  // MIME type, e.g. image/jpeg
+  bytes  data         = 4;  // binary blob
+}
+
+message CreateVersionResponse {
+  bytes  version_id     = 1;  // 24-byte KSUID
+  int32  version_number = 2;
+  string content_hash   = 3;  // SHA-256 hex
+}
+
+// ── List ──────────────────────────────────────────────────────────────────
+
+message ListVersionsRequest {
+  bytes object_id = 1;
+}
+
+message VersionInfo {
+  bytes  version_id     = 1;
+  int32  version_number = 2;
+  string content_hash   = 3;
+  int64  content_size   = 4;
+  string mime_type      = 5;
+  bytes  created_by     = 6;
+  int64  created_at_unix = 7;
+}
+
+message ListVersionsResponse {
+  repeated VersionInfo versions = 1;
+}
+
+// ── Get ───────────────────────────────────────────────────────────────────
+
+message GetVersionRequest {
+  bytes object_id  = 1;
+  bytes version_id = 2;
+}
+
+message GetVersionResponse {
+  VersionInfo version = 1;
+}
+
+// ── Download ──────────────────────────────────────────────────────────────
+
+message DownloadVersionRequest {
+  bytes object_id  = 1;
+  bytes version_id = 2;
+}
+
+message DownloadVersionResponse {
+  bytes  data           = 1;
+  string mime_type      = 2;
+  string content_hash   = 3;
+  int32  version_number = 4;
+}

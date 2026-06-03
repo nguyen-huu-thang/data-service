@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package data.internal.v1;
+
+// Internal-only object operations — exposed only to authenticated internal services.
+// No JWT verification; caller identity verified via mTLS service certificate.
+service ObjectInternalService {
+  rpc PurgeObject (PurgeObjectRequest) returns (PurgeObjectResponse);
+}
+
+message PurgeObjectRequest {
+  bytes  requester_identity_id = 1;  // identity that owns the object
+  bytes  object_id             = 2;
+}
+
+message PurgeObjectResponse {
+  bytes object_id = 1;
+}

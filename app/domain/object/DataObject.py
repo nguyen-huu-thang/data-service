@@ -5,6 +5,14 @@ from app.common.constants.ObjectStatus import ObjectStatus
 from app.common.constants.ObjectType import ObjectType
 from app.common.constants.Visibility import Visibility
 
+# Valid lifecycle transitions — only these are allowed
+VALID_TRANSITIONS: dict[ObjectStatus, frozenset[ObjectStatus]] = {
+    ObjectStatus.ACTIVE:       frozenset({ObjectStatus.ARCHIVED, ObjectStatus.SOFT_DELETED}),
+    ObjectStatus.ARCHIVED:     frozenset({ObjectStatus.ACTIVE,   ObjectStatus.SOFT_DELETED}),
+    ObjectStatus.SOFT_DELETED: frozenset({ObjectStatus.ACTIVE,   ObjectStatus.PURGED}),
+    ObjectStatus.PURGED:       frozenset(),  # terminal state
+}
+
 
 @dataclass(frozen=True)
 class DataObject:
@@ -23,7 +31,12 @@ class DataObject:
     tenant_id: str | None = None
     current_version_id: bytes | None = None
 
-    # State transitions — return new instance, never mutate
+    # ── State machine guard ───────────────────────────────────────────────
+
+    def can_transition_to(self, target: ObjectStatus) -> bool:
+        return target in VALID_TRANSITIONS.get(self.status, frozenset())
+
+    # ── State transitions — return new instance, never mutate ─────────────
 
     def archive(self, now: datetime) -> "DataObject":
         return replace(self, status=ObjectStatus.ARCHIVED, updated_at=now)
@@ -34,13 +47,20 @@ class DataObject:
     def restore(self, now: datetime) -> "DataObject":
         return replace(self, status=ObjectStatus.ACTIVE, updated_at=now)
 
+    def purge(self, now: datetime) -> "DataObject":
+        # Mark PURGED — row stays in DB to preserve audit trail; blobs deleted separately
+        return replace(self, status=ObjectStatus.PURGED, updated_at=now)
+
+    def update_version(self, version_id: bytes, now: datetime) -> "DataObject":
+        return replace(self, current_version_id=version_id, updated_at=now)
+
     def set_current_version(self, version_id: bytes, now: datetime) -> "DataObject":
         return replace(self, current_version_id=version_id, updated_at=now)
 
     def bump_permission_version(self, now: datetime) -> "DataObject":
         return replace(self, permission_version=self.permission_version + 1, updated_at=now)
 
-    # Queries
+    # ── Queries ───────────────────────────────────────────────────────────
 
     def is_accessible(self) -> bool:
         return self.status == ObjectStatus.ACTIVE

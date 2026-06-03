@@ -10,6 +10,8 @@ service ObjectService {
   rpc GetObject      (GetObjectRequest)      returns (GetObjectResponse);
   rpc DownloadObject (DownloadObjectRequest) returns (DownloadObjectResponse);
   rpc DeleteObject   (DeleteObjectRequest)   returns (DeleteObjectResponse);
+  rpc ArchiveObject  (ArchiveObjectRequest)  returns (ArchiveObjectResponse);
+  rpc RestoreObject  (RestoreObjectRequest)  returns (RestoreObjectResponse);
 }
 
 // ── Create ────────────────────────────────────────────────────────────────
@@ -68,4 +70,26 @@ message DeleteObjectRequest {
 
 message DeleteObjectResponse {
   bool success = 1;
+}
+
+// ── Archive ───────────────────────────────────────────────────────────────
+
+message ArchiveObjectRequest {
+  bytes object_id = 1;
+}
+
+message ArchiveObjectResponse {
+  bytes  object_id = 1;
+  string status    = 2;  // "ARCHIVED"
+}
+
+// ── Restore ───────────────────────────────────────────────────────────────
+
+message RestoreObjectRequest {
+  bytes object_id = 1;
+}
+
+message RestoreObjectResponse {
+  bytes  object_id = 1;
+  string status    = 2;  // "ACTIVE"
 }

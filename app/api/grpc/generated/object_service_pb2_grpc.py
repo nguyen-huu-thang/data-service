@@ -57,6 +57,16 @@ class ObjectServiceStub:
                 request_serializer=object__service__pb2.DeleteObjectRequest.SerializeToString,
                 response_deserializer=object__service__pb2.DeleteObjectResponse.FromString,
                 _registered_method=True)
+        self.ArchiveObject = channel.unary_unary(
+                '/data.v1.ObjectService/ArchiveObject',
+                request_serializer=object__service__pb2.ArchiveObjectRequest.SerializeToString,
+                response_deserializer=object__service__pb2.ArchiveObjectResponse.FromString,
+                _registered_method=True)
+        self.RestoreObject = channel.unary_unary(
+                '/data.v1.ObjectService/RestoreObject',
+                request_serializer=object__service__pb2.RestoreObjectRequest.SerializeToString,
+                response_deserializer=object__service__pb2.RestoreObjectResponse.FromString,
+                _registered_method=True)
 
 
 class ObjectServiceServicer:
@@ -89,6 +99,18 @@ class ObjectServiceServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ArchiveObject(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RestoreObject(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ObjectServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -111,6 +133,16 @@ def add_ObjectServiceServicer_to_server(servicer, server):
                     servicer.DeleteObject,
                     request_deserializer=object__service__pb2.DeleteObjectRequest.FromString,
                     response_serializer=object__service__pb2.DeleteObjectResponse.SerializeToString,
+            ),
+            'ArchiveObject': grpc.unary_unary_rpc_method_handler(
+                    servicer.ArchiveObject,
+                    request_deserializer=object__service__pb2.ArchiveObjectRequest.FromString,
+                    response_serializer=object__service__pb2.ArchiveObjectResponse.SerializeToString,
+            ),
+            'RestoreObject': grpc.unary_unary_rpc_method_handler(
+                    servicer.RestoreObject,
+                    request_deserializer=object__service__pb2.RestoreObjectRequest.FromString,
+                    response_serializer=object__service__pb2.RestoreObjectResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -224,6 +256,60 @@ class ObjectService:
             '/data.v1.ObjectService/DeleteObject',
             object__service__pb2.DeleteObjectRequest.SerializeToString,
             object__service__pb2.DeleteObjectResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ArchiveObject(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/data.v1.ObjectService/ArchiveObject',
+            object__service__pb2.ArchiveObjectRequest.SerializeToString,
+            object__service__pb2.ArchiveObjectResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RestoreObject(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/data.v1.ObjectService/RestoreObject',
+            object__service__pb2.RestoreObjectRequest.SerializeToString,
+            object__service__pb2.RestoreObjectResponse.FromString,
             options,
             channel_credentials,
             insecure,
