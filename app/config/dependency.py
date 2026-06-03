@@ -60,6 +60,11 @@ dependency.scan(
     # API — gRPC handlers (external + internal)
     "app.api.grpc.external",
     "app.api.grpc.internal.object",
+    # API — REST controllers
+    "app.api.rest.external.object",
+    "app.api.rest.external.version",
+    # API — REST mappers
+    "app.api.rest.mapper",
 )
 
 # ── Protocol → Implementation bindings ───────────────────────────────────────
