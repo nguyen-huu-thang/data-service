@@ -14,7 +14,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.config.database import Base
+from xime.starters.sqlalchemy import Base
 
 
 # ── SQLite engine (one per test session) ─────────────────────────────────────

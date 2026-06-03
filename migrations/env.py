@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 # Import Base để Alembic nhận diện metadata
-from app.config.database import Base
+from xime.starters.sqlalchemy import Base
 
 # Import tất cả entity để chúng được đăng ký vào Base.metadata
 import app.infrastructure.persistence.entity.DataObjectEntity       # noqa: F401

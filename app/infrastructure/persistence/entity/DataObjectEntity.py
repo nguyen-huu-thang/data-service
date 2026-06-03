@@ -1,12 +1,10 @@
-from datetime import datetime
-
-from sqlalchemy import DateTime, Index, Integer, JSON, LargeBinary, String
+from sqlalchemy import Index, Integer, JSON, LargeBinary, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.config.database import Base
+from xime.starters.sqlalchemy import Base, TimestampMixin
 
 
-class DataObjectEntity(Base):
+class DataObjectEntity(TimestampMixin, Base):
     __tablename__ = "data_object"
 
     object_id: Mapped[bytes] = mapped_column(LargeBinary(24), primary_key=True)
@@ -21,8 +19,6 @@ class DataObjectEntity(Base):
     storage_pointer: Mapped[str] = mapped_column(String(500), nullable=False)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     permission_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         Index(

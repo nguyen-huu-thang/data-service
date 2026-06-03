@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, Index, LargeBinary, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.config.database import Base
+from xime.starters.sqlalchemy import Base
 
 
 class ObjectAuditEntity(Base):
