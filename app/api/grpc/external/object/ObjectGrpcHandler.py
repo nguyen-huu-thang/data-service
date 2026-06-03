@@ -4,7 +4,7 @@ import grpc
 
 from app.api.grpc.generated.object_service_pb2 import ArchiveObjectResponse, RestoreObjectResponse
 from app.api.grpc.generated.object_service_pb2_grpc import ObjectServiceServicer
-from app.api.grpc.mapper.ObjectGrpcMapper import ObjectGrpcMapper
+from app.api.grpc.mapper.ObjectGrpcMapper import ObjectGrpcMapper  # injected via DI
 from app.application.dto.object.ArchiveObjectCommand import ArchiveObjectCommand
 from app.application.dto.object.RestoreObjectCommand import RestoreObjectCommand
 from app.application.service.authorization.JwtVerificationService import JwtVerificationService
@@ -34,6 +34,7 @@ class ObjectGrpcHandler(ObjectServiceServicer):
         archive_object_use_case: ArchiveObjectUseCase,
         restore_object_use_case: RestoreObjectUseCase,
         jwt_verification_service: JwtVerificationService,
+        mapper: ObjectGrpcMapper,
     ) -> None:
         self._create = create_object_use_case
         self._get = get_object_use_case
@@ -42,7 +43,7 @@ class ObjectGrpcHandler(ObjectServiceServicer):
         self._archive = archive_object_use_case
         self._restore = restore_object_use_case
         self._jwt = jwt_verification_service
-        self._mapper = ObjectGrpcMapper()  # utility class, not DI-managed
+        self._mapper = mapper
 
     # ── Helpers ──────────────────────────────────────────────────────────
 

@@ -1,21 +1,24 @@
 """
 Common test helpers shared across unit and integration tests.
 """
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
 
 from app.common.constants.ObjectStatus import ObjectStatus
 from app.common.constants.ObjectType import ObjectType
 from app.common.constants.Visibility import Visibility
 from app.domain.object.DataObject import DataObject
+from app.domain.object.ObjectVersion import ObjectVersion
 
 _T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 # Fixed IDs — deterministic, easy to reason about in tests
-OWNER_ID  = b'\x01' * 24
-OTHER_ID  = b'\x02' * 24
-OBJECT_ID = b'\xAA' * 24
+OWNER_ID   = b'\x01' * 24
+OTHER_ID   = b'\x02' * 24
+OBJECT_ID  = b'\xAA' * 24
 VERSION_ID = b'\xBB' * 24
-PERM_ID   = b'\xCC' * 24
+PERM_ID    = b'\xCC' * 24
 
 
 def make_object(**overrides) -> DataObject:
@@ -36,3 +39,50 @@ def make_object(**overrides) -> DataObject:
     )
     defaults.update(overrides)
     return DataObject(**defaults)
+
+
+def make_version(**overrides) -> ObjectVersion:
+    """Build a minimal valid ObjectVersion for unit tests."""
+    defaults: dict = dict(
+        version_id=VERSION_ID,
+        object_id=OBJECT_ID,
+        version_number=1,
+        storage_pointer="test/path/v1.jpg",
+        content_hash="ab" * 32,   # 64-char hex (SHA-256 shaped)
+        content_size=1024,
+        mime_type="image/jpeg",
+        created_by=OWNER_ID,
+        created_at=_T0,
+    )
+    defaults.update(overrides)
+    return ObjectVersion(**defaults)
+
+
+# ── Mock factories ────────────────────────────────────────────────────────────
+
+@asynccontextmanager
+async def _noop_tx():
+    yield
+
+
+def mock_tx() -> MagicMock:
+    """Callable mock that returns a no-op async context manager on each call."""
+    return MagicMock(side_effect=lambda: _noop_tx())
+
+
+def mock_audit() -> MagicMock:
+    """Mock AuditService with an async no-op record() method."""
+    svc = MagicMock()
+    svc.record = AsyncMock(return_value=None)
+    return svc
+
+
+def mock_auth(*, allow: bool = True) -> MagicMock:
+    """Mock AuthorizationService. allow=False raises PermissionDeniedException."""
+    from app.common.exception.PermissionDeniedException import PermissionDeniedException
+    svc = MagicMock()
+    if allow:
+        svc.require_capability = AsyncMock(return_value=None)
+    else:
+        svc.require_capability = AsyncMock(side_effect=PermissionDeniedException())
+    return svc

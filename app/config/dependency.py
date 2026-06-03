@@ -2,6 +2,8 @@ from xime.core.config.binding import BindingConfig
 from xime.core.transaction.manager import TransactionManager
 from xime.starters.sqlalchemy import SqlAlchemyTransactionManager
 
+from app.api.grpc.mapper.ObjectGrpcMapper import ObjectGrpcMapper
+from app.api.grpc.mapper.VersionGrpcMapper import VersionGrpcMapper
 from app.application.port.outbound.audit.SaveAuditPort import SaveAuditPort
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
@@ -26,6 +28,15 @@ from app.infrastructure.storage.minio.MinioStorageAdapter import MinioStorageAda
 # ─────────────────────────────────────────────────────────────────────────────
 
 dependency = BindingConfig()
+
+# ── Manual registration — classes outside auto-scan ───────────────────────────
+# app.api.grpc.mapper is not scanned; register mappers explicitly so they can
+# be injected into handlers instead of being instantiated manually.
+
+dependency.register(
+    ObjectGrpcMapper,
+    VersionGrpcMapper,
+)
 
 # ── Package scan ──────────────────────────────────────────────────────────────
 

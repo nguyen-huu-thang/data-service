@@ -13,11 +13,13 @@ def test_generated_ids_are_unique():
     ids = {generate_id() for _ in range(1000)}
     assert len(ids) == 1000
 
-def test_later_id_is_greater_than_earlier_id():
+def test_later_id_has_greater_or_equal_timestamp_prefix():
     id_a = generate_id()
     id_b = generate_id()
-    # IDs generated later should be >= because timestamp prefix is monotonic
-    assert id_b >= id_a
+    # Timestamp occupies the first 4 bytes — second-precision, so b >= a always holds.
+    # Full-byte comparison is not reliable when both IDs are generated in the same second
+    # because the 20-byte random suffix may produce id_b < id_a.
+    assert id_b[:4] >= id_a[:4]
 
 def test_id_timestamp_is_close_to_current_time():
     before = int(time.time())

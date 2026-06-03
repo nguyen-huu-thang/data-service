@@ -3,7 +3,7 @@ import logging
 import grpc
 
 from app.api.grpc.generated.version_service_pb2_grpc import VersionServiceServicer
-from app.api.grpc.mapper.VersionGrpcMapper import VersionGrpcMapper
+from app.api.grpc.mapper.VersionGrpcMapper import VersionGrpcMapper  # injected via DI
 from app.application.service.authorization.JwtVerificationService import JwtVerificationService
 from app.application.usecase.version.CreateVersionUseCase import CreateVersionUseCase
 from app.application.usecase.version.DownloadVersionUseCase import DownloadVersionUseCase
@@ -25,13 +25,14 @@ class VersionGrpcHandler(VersionServiceServicer):
         get_version_use_case: GetVersionUseCase,
         download_version_use_case: DownloadVersionUseCase,
         jwt_verification_service: JwtVerificationService,
+        mapper: VersionGrpcMapper,
     ) -> None:
         self._create = create_version_use_case
         self._list = list_versions_use_case
         self._get = get_version_use_case
         self._download = download_version_use_case
         self._jwt = jwt_verification_service
-        self._mapper = VersionGrpcMapper()
+        self._mapper = mapper
 
     @staticmethod
     def _extract_token(context: grpc.ServicerContext) -> str:
