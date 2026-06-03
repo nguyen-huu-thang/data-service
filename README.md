@@ -79,7 +79,7 @@ Roles: `OWNER`, `EDITOR`, `CONTRIBUTOR`, `VIEWER`
 ## Quick Start
 
 ```bash
-python app/main.py
+python -m app.main
 ```
 
 ---

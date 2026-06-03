@@ -79,7 +79,7 @@ Role: `OWNER`, `EDITOR`, `CONTRIBUTOR`, `VIEWER`
 ## Chạy nhanh
 
 ```bash
-python app/main.py
+python -m app.main
 ```
 
 ---
