@@ -1,4 +1,10 @@
+from xime.adapters.web import configure_controllers
 from xime.adapters.web.openapi import JwtBearer, OpenApiConfig, configure_openapi
+
+configure_controllers(
+    "app.api.rest.external.object",
+    "app.api.rest.external.version",
+)
 
 configure_openapi(
     OpenApiConfig(
@@ -15,5 +21,6 @@ configure_openapi(
         ),
         security=JwtBearer(),
         public_paths=[],
+        swagger_ui_title="Data Service - Swagger UI",
     )
 )

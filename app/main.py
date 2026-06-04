@@ -1,9 +1,11 @@
 from xime import Application
+from xime.adapters.grpc import GrpcAdapter
+from xime.adapters.web import WebAdapter
 
-from app.api.grpc.GrpcAdapter import GrpcAdapter
-from app.api.rest.RestAdapter import RestAdapter
+import app.config.web   # noqa: F401 — side-effect: registers REST controllers + OpenAPI
+import app.config.grpc  # noqa: F401 — side-effect: registers gRPC services
 
-app = Application(config_module="app.config.dependency")
+app = Application()
 
 if __name__ == "__main__":
-    app.use(GrpcAdapter()).use(RestAdapter()).run()
+    app.use(WebAdapter()).use(GrpcAdapter()).run()
