@@ -7,9 +7,10 @@ from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.application.service.audit.AuditService import AuditService
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.constants.Capability import Capability
 from app.common.exception.ObjectAlreadyDeletedException import ObjectAlreadyDeletedException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.permission.capability.AclCapability import AclCapability
 
 
 class DeleteObjectUseCase:
@@ -33,7 +34,7 @@ class DeleteObjectUseCase:
         async with self._tx():
             obj = await self._load.find_by_id(command.object_id)
 
-            if obj is None or obj.status.value == "PURGED":
+            if obj is None or obj.status == ObjectStatus.PURGED:
                 raise ObjectNotFoundException(command.object_id)
 
             if obj.is_deleted():
@@ -42,10 +43,16 @@ class DeleteObjectUseCase:
             await self._auth.require_capability(
                 command.requester_identity_id,
                 obj,
-                Capability.DELETE,
+                AclCapability.DELETE,
             )
 
             deleted = obj.soft_delete(now)
             await self._save.update(deleted)
 
-            await self._audit.record(obj.object_id, command.requester_identity_id, "DELETE")
+            await self._audit.record(
+                obj.object_id,
+                command.requester_identity_id,
+                command.requester_subject_type,
+                command.requester_name,
+                "DELETE",
+            )

@@ -11,7 +11,7 @@ import pytest
 
 from app.application.dto.version.ListVersionsQuery import ListVersionsQuery
 from app.application.usecase.version.ListVersionsUseCase import ListVersionsUseCase
-from app.common.constants.ObjectStatus import ObjectStatus
+from domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, make_object, make_version, mock_auth
@@ -20,7 +20,12 @@ pytestmark = pytest.mark.asyncio
 
 
 def _query(requester: bytes = OWNER_ID) -> ListVersionsQuery:
-    return ListVersionsQuery(requester_identity_id=requester, object_id=OBJECT_ID)
+    return ListVersionsQuery(
+        requester_identity_id=requester,
+        requester_subject_type="HUMAN",
+        requester_name="test",
+        object_id=OBJECT_ID,
+    )
 
 
 def _make_uc(*, obj=None, versions=None, auth_allow: bool = True):

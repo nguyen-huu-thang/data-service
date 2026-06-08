@@ -28,6 +28,8 @@ class ObjectInternalGrpcHandler(ObjectInternalServiceServicer):
         try:
             command = PurgeObjectCommand(
                 requester_identity_id=request.requester_identity_id,
+                requester_subject_type=getattr(request, "requester_subject_type", "APPLICATION"),
+                requester_name=getattr(request, "requester_name", ""),
                 object_id=request.object_id,
             )
             await self._purge.execute(command)

@@ -12,12 +12,14 @@ from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePor
 from app.application.port.outbound.version.SaveVersionPort import SaveVersionPort
 from app.application.service.audit.AuditService import AuditService
 from app.application.service.routing.ShardRoutingService import ShardRoutingService
-from app.common.constants.ObjectStatus import ObjectStatus
-from app.common.constants.Role import Role
 from app.common.util.IdGenerator import generate_id
-from app.domain.object.DataObject import DataObject
-from app.domain.object.ObjectVersion import ObjectVersion
-from app.domain.permission.ObjectPermission import ObjectPermission
+from app.domain.object.model.DataObject import DataObject
+from app.domain.object.model.ObjectVersion import ObjectVersion
+from app.domain.object.valueobject.ContentHash import ContentHash
+from app.domain.object.valueobject.MimeType import MimeType
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.permission.model.ObjectPermission import ObjectPermission
+from app.domain.permission.role.Role import Role
 
 _log = logging.getLogger(__name__)
 
@@ -65,34 +67,37 @@ class CreateObjectUseCase:
                 obj = DataObject(
                     object_id=object_id,
                     owner_identity_id=command.requester_identity_id,
+                    owner_subject_type=command.requester_subject_type,
                     tenant_id=command.tenant_id,
                     shard_id=shard_id,
                     object_type=command.object_type,
                     visibility=command.visibility,
                     status=ObjectStatus.ACTIVE,
-                    storage_provider="MINIO",
+                    storage_provider="LOCAL",
                     storage_pointer=pointer,
-                    metadata_json={},
+                    metadata={},
                     permission_version=1,
+                    current_version_id=version_id,
                     created_at=now,
                     updated_at=now,
-                    current_version_id=version_id,
                 )
                 version = ObjectVersion(
                     version_id=version_id,
                     object_id=object_id,
                     version_number=1,
                     storage_pointer=pointer,
-                    content_hash=content_hash,
+                    content_hash=ContentHash(content_hash),
                     content_size=len(command.data),
-                    mime_type=command.content_type,
-                    created_by=command.requester_identity_id,
+                    mime_type=MimeType(command.content_type),
+                    created_by_identity_id=command.requester_identity_id,
+                    created_by_subject_type=command.requester_subject_type,
                     created_at=now,
                 )
                 permission = ObjectPermission(
                     permission_id=permission_id,
                     object_id=object_id,
                     subject_identity_id=command.requester_identity_id,
+                    subject_type=command.requester_subject_type,
                     role=Role.OWNER,
                     created_at=now,
                 )
@@ -109,6 +114,14 @@ class CreateObjectUseCase:
                 pointer,
             )
             raise
+
+        await self._audit.record(
+            object_id,
+            command.requester_identity_id,
+            command.requester_subject_type,
+            command.requester_name,
+            "CREATE",
+        )
 
         return CreateObjectResult(
             object_id=object_id,

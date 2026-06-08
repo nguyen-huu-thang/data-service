@@ -7,9 +7,9 @@ from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePor
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.service.audit.AuditService import AuditService
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.constants.Capability import Capability
-from app.common.constants.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.permission.capability.AclCapability import AclCapability
 
 
 class DownloadObjectUseCase:
@@ -42,7 +42,7 @@ class DownloadObjectUseCase:
             await self._auth.require_capability(
                 query.requester_identity_id,
                 obj,
-                Capability.DOWNLOAD,
+                AclCapability.DOWNLOAD,
             )
 
             storage_pointer = obj.storage_pointer
@@ -50,11 +50,17 @@ class DownloadObjectUseCase:
             if obj.current_version_id:
                 version = await self._load_version.find_by_id(obj.current_version_id)
                 if version:
-                    mime_type = version.mime_type
+                    mime_type = version.mime_type.value
 
-            await self._audit.record(obj.object_id, query.requester_identity_id, "DOWNLOAD")
+            await self._audit.record(
+                obj.object_id,
+                query.requester_identity_id,
+                query.requester_subject_type,
+                query.requester_name,
+                "DOWNLOAD",
+            )
 
-        # Blob download outside DB transaction — MinIO IO doesn't need a DB session
+        # Blob download outside DB transaction — IO doesn't need a DB session
         data = await self._blob.download(storage_pointer)
 
         return DownloadObjectResult(

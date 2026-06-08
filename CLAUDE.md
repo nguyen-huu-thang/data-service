@@ -46,8 +46,13 @@ python app/main.py
 | [`.claude/docs/kien-truc-he-thong.md`](.claude/docs/kien-truc-he-thong.md) | Kiến trúc tổng thể Base Platform — tất cả services, công nghệ, ID design, sharding |
 | [`.claude/docs/identity-service.md`](.claude/docs/identity-service.md) | Identity Service — context để tích hợp JWT và identity_id |
 | [`.claude/docs/trust-service.md`](.claude/docs/trust-service.md) | Trust Service — context để verify JWT và thiết lập mTLS |
-| [`.claude/docs/roadmap.md`](.claude/docs/roadmap.md) | Các điểm cần hoàn thiện trong tương lai (chưa triển khai) |
-| [`.claude/docs/luong-xac-thuc.md`](.claude/docs/luong-xac-thuc.md) | Luồng xác thực giữa các service — JWT verification, mTLS, shard routing |
+| [`.claude/docs/roadmap.md`](.claude/docs/roadmap.md) | Roadmap 7 phase — từ Core Storage đến Data Platform |
+| [`.claude/docs/luong-xac-thuc.md`](.claude/docs/luong-xac-thuc.md) | Luồng xác thực — Subject model, authorization flow 4 lớp, JWT/mTLS/cache sync |
+| [`.claude/docs/data-service.md`](.claude/docs/data-service.md) | Tổng quan Data Service — mục tiêu, nguyên tắc, ownership, authorization model |
+| [`.claude/docs/lua-chon-cong-nghe.md`](.claude/docs/lua-chon-cong-nghe.md) | Chiến lược công nghệ — 2 giai đoạn: Python thuần → Python + xime-cryptod (C/C++) |
+| [`.claude/docs/lua-chon-python.md`](.claude/docs/lua-chon-python.md) | Lý do chọn Python + Xime Framework — I/O bound, developer productivity, so sánh Go/Java |
+| [`.claude/docs/ra-soat-application-layer.md`](.claude/docs/ra-soat-application-layer.md) | Rà soát application layer — use case còn thiếu, service có thể phát sinh |
+| [`.claude/docs/ke-hoach-sua-code.md`](.claude/docs/ke-hoach-sua-code.md) | **Kế hoạch sửa code** — 8 phase đồng bộ code với thiết kế mới, checklist đầy đủ |
 
 ### Rules — Quy tắc kiến trúc & Code
 

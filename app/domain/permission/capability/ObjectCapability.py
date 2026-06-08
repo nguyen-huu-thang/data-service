@@ -1,0 +1,15 @@
+from enum import StrEnum
+
+
+class ObjectCapability(StrEnum):
+    DATA_READ_ANY = "DATA_READ_ANY"
+
+    DATA_WRITE_ANY = "DATA_WRITE_ANY"
+
+    DATA_DELETE_ANY = "DATA_DELETE_ANY"
+
+    DATA_SHARE_ANY = "DATA_SHARE_ANY"
+
+    DATA_RESTORE_ANY = "DATA_RESTORE_ANY"
+
+    DATA_AUDIT_READ = "DATA_AUDIT_READ"

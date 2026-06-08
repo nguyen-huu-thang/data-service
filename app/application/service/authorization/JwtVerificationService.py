@@ -86,7 +86,12 @@ class JwtVerificationService:
         except ValueError as e:
             raise InvalidTokenException(f"Invalid sub format (expected hex): {e}") from e
 
+        subject_type = payload.get("subject_type", "HUMAN")
+        name = payload.get("name", "")
+
         return VerifiedClaims(
             identity_id=identity_id,
             token_version=int(token_version),
+            subject_type=subject_type,
+            name=name,
         )

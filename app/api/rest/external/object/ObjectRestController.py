@@ -23,13 +23,13 @@ from app.application.usecase.object.DeleteObjectUseCase import DeleteObjectUseCa
 from app.application.usecase.object.DownloadObjectUseCase import DownloadObjectUseCase
 from app.application.usecase.object.GetObjectUseCase import GetObjectUseCase
 from app.application.usecase.object.RestoreObjectUseCase import RestoreObjectUseCase
-from app.common.constants.ObjectType import ObjectType
-from app.common.constants.Visibility import Visibility
 from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
 from app.common.exception.InvalidTokenException import InvalidTokenException
 from app.common.exception.ObjectAlreadyDeletedException import ObjectAlreadyDeletedException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
+from app.domain.object.valueobject.ObjectType import ObjectType
+from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
 
 _log = logging.getLogger(__name__)
 
@@ -85,8 +85,10 @@ class ObjectRestController:
             data = await file.read()
             command = CreateObjectCommand(
                 requester_identity_id=claims.identity_id,
+                requester_subject_type=claims.subject_type,
+                requester_name=claims.name,
                 object_type=ObjectType(object_type),
-                visibility=Visibility(visibility),
+                visibility=ObjectVisibility(visibility),
                 filename=file.filename or "upload",
                 content_type=file.content_type or "application/octet-stream",
                 data=data,
@@ -116,6 +118,8 @@ class ObjectRestController:
             claims = await self._jwt.verify(_require_token(authorization))
             query = GetObjectQuery(
                 requester_identity_id=claims.identity_id,
+                requester_subject_type=claims.subject_type,
+                requester_name=claims.name,
                 object_id=_parse_object_id(object_id),
             )
             obj = await self._get.execute(query)
@@ -142,6 +146,8 @@ class ObjectRestController:
             claims = await self._jwt.verify(_require_token(authorization))
             query = DownloadObjectQuery(
                 requester_identity_id=claims.identity_id,
+                requester_subject_type=claims.subject_type,
+                requester_name=claims.name,
                 object_id=_parse_object_id(object_id),
             )
             result = await self._download.execute(query)
@@ -175,6 +181,8 @@ class ObjectRestController:
             claims = await self._jwt.verify(_require_token(authorization))
             command = DeleteObjectCommand(
                 requester_identity_id=claims.identity_id,
+                requester_subject_type=claims.subject_type,
+                requester_name=claims.name,
                 object_id=_parse_object_id(object_id),
             )
             await self._delete.execute(command)
@@ -202,7 +210,12 @@ class ObjectRestController:
             claims = await self._jwt.verify(_require_token(authorization))
             oid = _parse_object_id(object_id)
             await self._archive.execute(
-                ArchiveObjectCommand(requester_identity_id=claims.identity_id, object_id=oid)
+                ArchiveObjectCommand(
+                    requester_identity_id=claims.identity_id,
+                    requester_subject_type=claims.subject_type,
+                    requester_name=claims.name,
+                    object_id=oid,
+                )
             )
             return self._mapper.to_archive_response(oid)
         except HTTPException:
@@ -229,7 +242,12 @@ class ObjectRestController:
             claims = await self._jwt.verify(_require_token(authorization))
             oid = _parse_object_id(object_id)
             await self._restore.execute(
-                RestoreObjectCommand(requester_identity_id=claims.identity_id, object_id=oid)
+                RestoreObjectCommand(
+                    requester_identity_id=claims.identity_id,
+                    requester_subject_type=claims.subject_type,
+                    requester_name=claims.name,
+                    object_id=oid,
+                )
             )
             return self._mapper.to_restore_response(oid)
         except HTTPException:

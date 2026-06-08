@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from app.domain.object.ObjectVersion import ObjectVersion
+from app.domain.object.model.ObjectVersion import ObjectVersion
 
 
 class LoadVersionPort(Protocol):

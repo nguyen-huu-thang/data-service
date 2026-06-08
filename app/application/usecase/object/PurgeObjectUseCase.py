@@ -9,10 +9,10 @@ from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.service.audit.AuditService import AuditService
-from app.common.constants.ObjectStatus import ObjectStatus
 from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 
 _log = logging.getLogger(__name__)
 
@@ -65,4 +65,10 @@ class PurgeObjectUseCase:
         async with self._tx():
             purged = obj.purge(now)
             await self._save.update(purged)
-            await self._audit.record(obj.object_id, command.requester_identity_id, "PURGE")
+            await self._audit.record(
+                obj.object_id,
+                command.requester_identity_id,
+                command.requester_subject_type,
+                command.requester_name,
+                "PURGE",
+            )

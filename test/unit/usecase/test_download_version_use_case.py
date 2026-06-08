@@ -12,7 +12,7 @@ import pytest
 
 from app.application.dto.version.DownloadVersionQuery import DownloadVersionQuery
 from app.application.usecase.version.DownloadVersionUseCase import DownloadVersionUseCase
-from app.common.constants.ObjectStatus import ObjectStatus
+from domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, VERSION_ID, make_object, make_version, mock_audit, mock_auth
@@ -25,6 +25,8 @@ _BLOB = b"version binary data"
 def _query(requester: bytes = OWNER_ID) -> DownloadVersionQuery:
     return DownloadVersionQuery(
         requester_identity_id=requester,
+        requester_subject_type="HUMAN",
+        requester_name="test",
         object_id=OBJECT_ID,
         version_id=VERSION_ID,
     )
@@ -57,7 +59,7 @@ async def test_returns_blob_data_and_metadata():
     result = await uc.execute(_query())
     assert result.data == _BLOB
     assert result.mime_type == "image/jpeg"
-    assert result.content_hash == v.content_hash
+    assert result.content_hash == v.content_hash.value
     assert result.version_number == v.version_number
 
 
@@ -85,7 +87,7 @@ async def test_records_audit_on_download():
         audit_service=audit,
     )
     await uc.execute(_query())
-    audit.record.assert_called_once_with(OBJECT_ID, OWNER_ID, "DOWNLOAD_VERSION")
+    audit.record.assert_called_once_with(OBJECT_ID, OWNER_ID, "HUMAN", "test", "DOWNLOAD_VERSION")
 
 
 # ── Not found ─────────────────────────────────────────────────────────────────

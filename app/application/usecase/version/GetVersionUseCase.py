@@ -2,10 +2,10 @@ from app.application.dto.version.GetVersionQuery import GetVersionQuery
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.constants.Capability import Capability
-from app.common.constants.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.domain.object.ObjectVersion import ObjectVersion
+from app.domain.object.model.ObjectVersion import ObjectVersion
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.permission.capability.AclCapability import AclCapability
 
 
 class GetVersionUseCase:
@@ -26,7 +26,7 @@ class GetVersionUseCase:
             raise ObjectNotFoundException(query.object_id)
 
         await self._auth.require_capability(
-            query.requester_identity_id, obj, Capability.READ
+            query.requester_identity_id, obj, AclCapability.READ
         )
 
         version = await self._load_version.find_by_id(query.version_id)

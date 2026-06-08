@@ -45,7 +45,7 @@ class VersionGrpcHandler(VersionServiceServicer):
     async def CreateVersion(self, request, context):
         try:
             claims = await self._jwt.verify(self._extract_token(context))
-            command = self._mapper.to_create_command(request, claims.identity_id)
+            command = self._mapper.to_create_command(request, claims.identity_id, claims.subject_type, claims.name)
             result = await self._create.execute(command)
             return self._mapper.to_create_response(result)
         except InvalidTokenException as e:
@@ -63,7 +63,7 @@ class VersionGrpcHandler(VersionServiceServicer):
     async def ListVersions(self, request, context):
         try:
             claims = await self._jwt.verify(self._extract_token(context))
-            query = self._mapper.to_list_query(request, claims.identity_id)
+            query = self._mapper.to_list_query(request, claims.identity_id, claims.subject_type, claims.name)
             versions = await self._list.execute(query)
             return self._mapper.to_list_response(versions)
         except InvalidTokenException as e:
@@ -79,7 +79,7 @@ class VersionGrpcHandler(VersionServiceServicer):
     async def GetVersion(self, request, context):
         try:
             claims = await self._jwt.verify(self._extract_token(context))
-            query = self._mapper.to_get_query(request, claims.identity_id)
+            query = self._mapper.to_get_query(request, claims.identity_id, claims.subject_type, claims.name)
             version = await self._get.execute(query)
             return self._mapper.to_get_response(version)
         except InvalidTokenException as e:
@@ -95,7 +95,7 @@ class VersionGrpcHandler(VersionServiceServicer):
     async def DownloadVersion(self, request, context):
         try:
             claims = await self._jwt.verify(self._extract_token(context))
-            query = self._mapper.to_download_query(request, claims.identity_id)
+            query = self._mapper.to_download_query(request, claims.identity_id, claims.subject_type, claims.name)
             result = await self._download.execute(query)
             return self._mapper.to_download_response(result)
         except InvalidTokenException as e:

@@ -11,7 +11,7 @@ import pytest
 
 from app.application.dto.object.GetObjectQuery import GetObjectQuery
 from app.application.usecase.object.GetObjectUseCase import GetObjectUseCase
-from app.common.constants.ObjectStatus import ObjectStatus
+from domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, make_object, mock_audit, mock_auth, mock_tx
@@ -31,7 +31,12 @@ def _make_use_case(*, obj=None, auth_allow: bool = True) -> GetObjectUseCase:
 
 
 def _query(requester: bytes = OWNER_ID) -> GetObjectQuery:
-    return GetObjectQuery(requester_identity_id=requester, object_id=OBJECT_ID)
+    return GetObjectQuery(
+        requester_identity_id=requester,
+        requester_subject_type="HUMAN",
+        requester_name="test",
+        object_id=OBJECT_ID,
+    )
 
 
 # ── Happy path ────────────────────────────────────────────────────────────────
@@ -55,7 +60,7 @@ async def test_records_audit_on_success():
         audit_service=audit,
     )
     await uc.execute(_query())
-    audit.record.assert_called_once_with(obj.object_id, OWNER_ID, "READ")
+    audit.record.assert_called_once_with(obj.object_id, OWNER_ID, "HUMAN", "test", "READ")
 
 
 # ── Not found ─────────────────────────────────────────────────────────────────

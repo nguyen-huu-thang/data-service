@@ -12,7 +12,7 @@ import pytest
 
 from app.application.dto.object.ArchiveObjectCommand import ArchiveObjectCommand
 from app.application.usecase.object.ArchiveObjectUseCase import ArchiveObjectUseCase
-from app.common.constants.ObjectStatus import ObjectStatus
+from domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
@@ -22,7 +22,12 @@ pytestmark = pytest.mark.asyncio
 
 
 def _cmd(requester: bytes = OWNER_ID) -> ArchiveObjectCommand:
-    return ArchiveObjectCommand(requester_identity_id=requester, object_id=OBJECT_ID)
+    return ArchiveObjectCommand(
+        requester_identity_id=requester,
+        requester_subject_type="HUMAN",
+        requester_name="test",
+        object_id=OBJECT_ID,
+    )
 
 
 def _make_uc(*, obj=None, auth_allow: bool = True):
@@ -63,7 +68,7 @@ async def test_records_audit_on_archive():
         audit_service=audit,
     )
     await uc.execute(_cmd())
-    audit.record.assert_called_once_with(OBJECT_ID, OWNER_ID, "ARCHIVE")
+    audit.record.assert_called_once_with(OBJECT_ID, OWNER_ID, "HUMAN", "test", "ARCHIVE")
 
 
 # ── Invalid transitions ───────────────────────────────────────────────────────

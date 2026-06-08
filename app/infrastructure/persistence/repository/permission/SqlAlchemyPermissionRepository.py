@@ -1,7 +1,7 @@
 from sqlalchemy import delete as sql_delete, select
 from xime.starters.sqlalchemy.session import AsyncSessionFactory
 
-from app.domain.permission.ObjectPermission import ObjectPermission
+from app.domain.permission.model.ObjectPermission import ObjectPermission
 from app.infrastructure.persistence.entity.ObjectPermissionEntity import ObjectPermissionEntity
 from app.infrastructure.persistence.mapper.ObjectPermissionMapper import ObjectPermissionMapper
 

@@ -4,19 +4,56 @@ from xime.starters.sqlalchemy import SqlAlchemyTransactionManager
 
 from app.api.grpc.mapper.ObjectGrpcMapper import ObjectGrpcMapper
 from app.api.grpc.mapper.VersionGrpcMapper import VersionGrpcMapper
-from app.application.port.outbound.audit.SaveAuditPort import SaveAuditPort
+
+# Structured ports (hexagonal architecture)
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
-from app.application.port.outbound.permission.LoadPermissionPort import LoadPermissionPort
-from app.application.port.outbound.permission.SavePermissionPort import SavePermissionPort
-from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.port.outbound.version.SaveVersionPort import SaveVersionPort
-from app.infrastructure.persistence.repository.audit.SqlAlchemyAuditRepository import SqlAlchemyAuditRepository
-from app.infrastructure.persistence.repository.object.SqlAlchemyObjectRepository import SqlAlchemyObjectRepository
-from app.infrastructure.persistence.repository.permission.SqlAlchemyPermissionRepository import SqlAlchemyPermissionRepository
-from app.infrastructure.persistence.repository.version.SqlAlchemyVersionRepository import SqlAlchemyVersionRepository
+from app.application.port.outbound.permission.LoadPermissionPort import LoadPermissionPort
+from app.application.port.outbound.permission.SavePermissionPort import SavePermissionPort
+from app.application.port.outbound.permission.LoadSubjectPermissionPort import LoadSubjectPermissionPort
+from app.application.port.outbound.audit.SaveAuditPort import SaveAuditPort
+from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
+
+# Legacy flat-style ports (still bound for backward compatibility)
+from app.application.port.outbound.ObjectRepository import ObjectRepository
+from app.application.port.outbound.ObjectVersionRepository import ObjectVersionRepository
+from app.application.port.outbound.ObjectReferenceRepository import ObjectReferenceRepository
+from app.application.port.outbound.ObjectShareRepository import ObjectShareRepository
+from app.application.port.outbound.ObjectTagRepository import ObjectTagRepository
+from app.application.port.outbound.ObjectPermissionRepository import ObjectPermissionRepository
+from app.application.port.outbound.SubjectPermissionRepository import SubjectPermissionRepository
+from app.application.port.outbound.SubjectInfoRepository import SubjectInfoRepository
+from app.application.port.outbound.ObjectAuditRepository import ObjectAuditRepository
+
 from app.infrastructure.storage.local.LocalDiskStorageAdapter import LocalDiskStorageAdapter
+
+# Structured repositories
+from app.infrastructure.persistence.repository.object.SqlAlchemyObjectRepository import (
+    SqlAlchemyObjectRepository as StructuredObjectRepository,
+)
+from app.infrastructure.persistence.repository.permission.SqlAlchemyPermissionRepository import (
+    SqlAlchemyPermissionRepository as StructuredPermissionRepository,
+)
+from app.infrastructure.persistence.repository.version.SqlAlchemyVersionRepository import (
+    SqlAlchemyVersionRepository as StructuredVersionRepository,
+)
+from app.infrastructure.persistence.repository.audit.SqlAlchemyAuditRepository import (
+    SqlAlchemyAuditRepository as StructuredAuditRepository,
+)
+
+# Legacy flat repositories
+from app.infrastructure.persistence.repository.SqlAlchemyObjectAuditRepository import SqlAlchemyObjectAuditRepository
+from app.infrastructure.persistence.repository.SqlAlchemyObjectPermissionRepository import SqlAlchemyObjectPermissionRepository
+from app.infrastructure.persistence.repository.SqlAlchemyObjectReferenceRepository import SqlAlchemyObjectReferenceRepository
+from app.infrastructure.persistence.repository.SqlAlchemyObjectRepository import SqlAlchemyObjectRepository
+from app.infrastructure.persistence.repository.SqlAlchemyObjectShareRepository import SqlAlchemyObjectShareRepository
+from app.infrastructure.persistence.repository.SqlAlchemyObjectTagRepository import SqlAlchemyObjectTagRepository
+from app.infrastructure.persistence.repository.SqlAlchemyObjectVersionRepository import SqlAlchemyObjectVersionRepository
+from app.infrastructure.persistence.repository.SqlAlchemySubjectPermissionRepository import SqlAlchemySubjectPermissionRepository
+from app.infrastructure.persistence.repository.SqlAlchemySubjectInfoRepository import SqlAlchemySubjectInfoRepository
+
 
 # ── DI configuration for Data Service ────────────────────────────────────────
 #
@@ -47,9 +84,18 @@ dependency.scan(
     "app.application.service",
     # Core use cases (object CRUD + lifecycle)
     "app.application.usecase.object",
-    # Version use cases (Phase 11)
+    # Version use cases
     "app.application.usecase.version",
-    # Infrastructure — DB repositories
+    # Permission use cases
+    "app.application.usecase.permission",
+    # Subject sync use cases
+    "app.application.usecase.subject",
+    # Infrastructure — DB repositories (structured)
+    "app.infrastructure.persistence.repository.object",
+    "app.infrastructure.persistence.repository.permission",
+    "app.infrastructure.persistence.repository.version",
+    "app.infrastructure.persistence.repository.audit",
+    # Infrastructure — DB repositories (legacy flat)
     "app.infrastructure.persistence.repository",
     # Infrastructure — blob storage
     "app.infrastructure.storage",
@@ -71,18 +117,33 @@ dependency.scan(
 
 dependency.bind({
     # Transaction
-    TransactionManager:    SqlAlchemyTransactionManager,
-    # Object
-    LoadObjectPort:        SqlAlchemyObjectRepository,
-    SaveObjectPort:        SqlAlchemyObjectRepository,
-    # Permission
-    LoadPermissionPort:    SqlAlchemyPermissionRepository,
-    SavePermissionPort:    SqlAlchemyPermissionRepository,
-    # Version
-    LoadVersionPort:       SqlAlchemyVersionRepository,
-    SaveVersionPort:       SqlAlchemyVersionRepository,
+    TransactionManager: SqlAlchemyTransactionManager,
+
+    # Structured ports → structured repositories
+    LoadObjectPort: StructuredObjectRepository,
+    SaveObjectPort: StructuredObjectRepository,
+
+    LoadVersionPort: StructuredVersionRepository,
+    SaveVersionPort: StructuredVersionRepository,
+
+    LoadPermissionPort: StructuredPermissionRepository,
+    SavePermissionPort: StructuredPermissionRepository,
+
+    LoadSubjectPermissionPort: SqlAlchemySubjectPermissionRepository,
+
+    SaveAuditPort: StructuredAuditRepository,
+
     # Blob storage
-    BlobStoragePort:       LocalDiskStorageAdapter,
-    # Audit
-    SaveAuditPort:         SqlAlchemyAuditRepository,
+    BlobStoragePort: LocalDiskStorageAdapter,
+
+    # Legacy flat ports → legacy repositories
+    ObjectRepository: SqlAlchemyObjectRepository,
+    ObjectVersionRepository: SqlAlchemyObjectVersionRepository,
+    ObjectReferenceRepository: SqlAlchemyObjectReferenceRepository,
+    ObjectShareRepository: SqlAlchemyObjectShareRepository,
+    ObjectTagRepository: SqlAlchemyObjectTagRepository,
+    ObjectPermissionRepository: SqlAlchemyObjectPermissionRepository,
+    SubjectPermissionRepository: SqlAlchemySubjectPermissionRepository,
+    SubjectInfoRepository: SqlAlchemySubjectInfoRepository,
+    ObjectAuditRepository: SqlAlchemyObjectAuditRepository,
 })

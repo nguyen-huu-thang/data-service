@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from xime.starters.sqlalchemy.session import AsyncSessionFactory
 
-from app.domain.object.ObjectVersion import ObjectVersion
+from app.domain.object.model.ObjectVersion import ObjectVersion
 from app.infrastructure.persistence.entity.ObjectVersionEntity import ObjectVersionEntity
 from app.infrastructure.persistence.mapper.ObjectVersionMapper import ObjectVersionMapper
 

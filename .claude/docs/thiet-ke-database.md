@@ -1,215 +1,536 @@
 # Thiết kế Database — Data Service
 
-> Đây là thiết kế tham khảo, có thể chỉnh sửa nhiều trong tương lai.
+> Đây là thiết kế tham khảo cho Data Service.
+>
+> Mục tiêu:
+>
+> * Generic
+> * Reusable
+> * Distributed-first
+> * Subject-centric
+> * Permission-aware
+> * Application-aware
+> * Shard-friendly
+
+---
 
 ## Nguyên tắc thiết kế
 
-- Generic, reusable, shard-friendly, identity-centric, permission-aware
-- **Không** tạo bảng `image`, `video`, `document`, `attachment` — điều này khiến Data Service hiểu business
-- Mọi dữ liệu đều là `DataObject`
-- Database chỉ lưu metadata, **không** lưu binary
-- Mỗi shard có bộ bảng riêng (shared-nothing)
+Data Service không hiểu business domain.
+
+Data Service không tạo các bảng:
+
+```text
+image
+video
+avatar
+product_image
+chat_attachment
+```
+
+Mọi dữ liệu đều là:
+
+```text
+DataObject
+```
+
+Database chỉ lưu metadata.
+
+Binary luôn nằm ở Blob Storage.
 
 ---
 
-## MVP — 4 bảng cốt lõi
+## Subject Model
 
-Giai đoạn đầu chỉ cần 4 bảng này đã đủ để build avatar storage, attachment, document, media, AI artifact, permission engine:
+Data Service sử dụng Subject làm đơn vị sở hữu dữ liệu.
 
-1. `data_object`
-2. `object_version`
-3. `object_permission`
-4. `object_reference`
+Subject là:
 
----
+```text
+HUMAN
+BOT
+AI_AGENT
+APPLICATION
+```
 
-## Bảng: data_object
+Mỗi Subject có:
 
-Bảng trung tâm của toàn bộ hệ thống.
-
-| Trường | Kiểu | Mô tả |
-|---|---|---|
-| `id` | binary(24) | Định danh object |
-| `tenant_id` | varchar | Tenant sở hữu (null = platform mặc định) |
-| `owner_identity_id` | binary(24) | **Identity sở hữu — mọi routing bắt đầu từ đây** |
-| `shard_id` | varchar | Shard chứa object (VD: DATA01, VN01) |
-| `object_type` | varchar | IMAGE, VIDEO, DOCUMENT, ARCHIVE, DATASET |
-| `visibility` | varchar | PRIVATE, INTERNAL, PUBLIC |
-| `status` | varchar | ACTIVE, ARCHIVED, SOFT_DELETED, PURGED |
-| `current_version_id` | binary(24) | Version hiện tại |
-| `storage_provider` | varchar | LOCAL_DISK |
-| `storage_pointer` | varchar | Địa chỉ vật lý blob (VD: bucket-a/image/abc.jpg) |
-| `metadata_json` | json | Metadata mở rộng (VD: `{"width": 1920, "height": 1080}`) |
-| `permission_version` | int | Version ACL — dùng cho cache invalidation |
-| `created_at` | timestamp | |
-| `updated_at` | timestamp | |
-
----
-
-## Bảng: object_version
-
-Mỗi lần object thay đổi nội dung → sinh version mới.
-
-| Trường | Kiểu | Mô tả |
-|---|---|---|
-| `id` | binary(24) | Version id |
-| `object_id` | binary(24) | Object cha |
-| `version_number` | int | 1, 2, 3, ... |
-| `storage_pointer` | varchar | Địa chỉ blob của version này |
-| `content_hash` | varchar | SHA256 — dùng cho integrity check và deduplicate |
-| `content_size` | bigint | Kích thước file (bytes) |
-| `mime_type` | varchar | VD: image/jpeg, application/pdf |
-| `created_by` | binary(24) | Identity tạo version |
-| `created_at` | timestamp | |
-
----
-
-## Bảng: object_permission
-
-ACL của object — ai có quyền gì.
-
-| Trường | Kiểu | Mô tả |
-|---|---|---|
-| `id` | binary(24) | |
-| `object_id` | binary(24) | |
-| `subject_identity_id` | binary(24) | Identity được cấp quyền |
-| `role` | varchar | OWNER, EDITOR, CONTRIBUTOR, VIEWER |
-| `created_at` | timestamp | |
+```text
+identity_id
+subject_type
+name
+```
 
 Ví dụ:
+
+```text
+identity_id = 01ABC...
+subject_type = HUMAN
+name = Nguyen Van A
 ```
-photo-001:
-  userA → OWNER
-  userB → EDITOR
-  userC → VIEWER
+
+hoặc:
+
+```text
+identity_id = 01XYZ...
+subject_type = APPLICATION
+name = Xime Social
+```
+
+Data Service cache Subject Information để:
+
+* Audit
+* Logging
+* Monitoring
+* Authorization
+* Incident Investigation
+
+Source of truth nằm ở service quản lý Subject.
+
+---
+
+## System Permission Model
+
+Data Service hỗ trợ hai loại quyền:
+
+## System Permission
+
+Quyền hệ thống.
+
+Ví dụ:
+
+```text
+DATA_READ_ANY
+DATA_WRITE_ANY
+DATA_DELETE_ANY
+DATA_RESTORE_ANY
+DATA_SHARE_ANY
+```
+
+Quyền này thuộc về Subject.
+
+Ví dụ:
+
+```text
+Xime Social
+
+DATA_CREATE_OBJECT
+DATA_READ_OBJECT
+```
+
+Hoặc:
+
+```text
+Moderation System
+
+DATA_DELETE_ANY
 ```
 
 ---
 
-## Bảng: object_capability
+## Object Permission
 
-Capability chi tiết (bổ sung sau object_permission nếu cần granular control).
+Quyền trên từng DataObject cụ thể.
 
-| Trường | Kiểu | Mô tả |
-|---|---|---|
-| `id` | binary(24) | |
-| `permission_id` | binary(24) | Liên kết object_permission |
-| `capability` | varchar | READ, WRITE, DELETE, DOWNLOAD, SHARE, COMMENT |
+Ví dụ:
 
----
-
-## Bảng: object_reference
-
-Theo dõi object đang được service nào sử dụng.
-
-| Trường | Kiểu | Mô tả |
-|---|---|---|
-| `id` | binary(24) | |
-| `object_id` | binary(24) | |
-| `service_id` | varchar | VD: post-service, product-service |
-| `resource_type` | varchar | VD: POST, PRODUCT, MESSAGE |
-| `resource_id` | varchar | ID thực thể business |
-| `created_at` | timestamp | |
+```text
+READ
+WRITE
+DELETE
+SHARE
+DOWNLOAD
+```
 
 ---
 
-## Bảng: object_tag
+## MVP Database Tables
+
+## 1. data_object
+
+Bảng trung tâm của toàn hệ thống.
+
+| Trường             | Kiểu       | Mô tả                                  |
+| ------------------ | ---------- | -------------------------------------- |
+| id                 | binary(24) | Object ID                              |
+| tenant_id          | varchar    | Tenant sở hữu môi trường               |
+| shard_id           | varchar    | Data shard                             |
+| owner_identity_id  | binary(24) | Chủ sở hữu                             |
+| owner_subject_type | varchar    | HUMAN/BOT/AI_AGENT/APPLICATION         |
+| object_type        | varchar    | IMAGE, VIDEO, DOCUMENT, DATASET        |
+| visibility         | varchar    | PRIVATE, INTERNAL, PUBLIC              |
+| status             | varchar    | ACTIVE, ARCHIVED, SOFT_DELETED, PURGED |
+| current_version_id | binary(24) | Version hiện tại                       |
+| storage_provider   | varchar    | LOCAL_DISK                             |
+| storage_pointer    | varchar    | Địa chỉ blob                           |
+| metadata_json      | json       | Metadata mở rộng                       |
+| permission_version | int        | ACL version                            |
+| created_at         | timestamp  |                                        |
+| updated_at         | timestamp  |                                        |
+
+---
+
+## 2. object_version
+
+Version bất biến của dữ liệu.
+
+| Trường                  | Kiểu       |
+| ----------------------- | ---------- |
+| id                      | binary(24) |
+| object_id               | binary(24) |
+| version_number          | int        |
+| storage_pointer         | varchar    |
+| content_hash            | varchar    |
+| content_size            | bigint     |
+| mime_type               | varchar    |
+| created_by_identity_id  | binary(24) |
+| created_by_subject_type | varchar    |
+| created_at              | timestamp  |
+
+Nguyên tắc:
+
+```text
+Version không sửa.
+
+Chỉ tạo mới.
+```
+
+---
+
+## 3. object_permission
+
+ACL của từng Object.
+
+| Trường              | Kiểu       |
+| ------------------- | ---------- |
+| id                  | binary(24) |
+| object_id           | binary(24) |
+| subject_identity_id | binary(24) |
+| subject_type        | varchar    |
+| role                | varchar    |
+| created_at          | timestamp  |
+
+Ví dụ:
+
+```text
+USER_A → OWNER
+USER_B → EDITOR
+BOT_C → VIEWER
+APPLICATION_X → EDITOR
+```
+
+---
+
+## 4. subject_cache
+
+Cache Subject Information.
+
+Source of truth không nằm ở Data Service.
+
+| Trường       | Kiểu       |
+| ------------ | ---------- |
+| identity_id  | binary(24) |
+| subject_type | varchar    |
+| name         | varchar    |
+| updated_at   | timestamp  |
+
+Mục đích:
+
+```text
+Audit
+Logging
+Debug
+Monitoring
+```
+
+---
+
+## 5. subject_permission
+
+Cache quyền hệ thống.
+
+Source of truth nằm ở Subject Service hoặc Application Service.
+
+| Trường              | Kiểu       |
+| ------------------- | ---------- |
+| id                  | binary(24) |
+| subject_identity_id | binary(24) |
+| subject_type        | varchar    |
+| permission          | varchar    |
+| created_at          | timestamp  |
+| updated_at          | timestamp  |
+
+Ví dụ:
+
+```text
+APP_XIME_SOCIAL
+
+DATA_CREATE_OBJECT
+DATA_READ_OBJECT
+```
+
+Hoặc:
+
+```text
+MODERATION_SYSTEM
+
+DATA_DELETE_ANY
+```
+
+---
+
+## 6. object_reference
+
+Theo dõi Application đang sử dụng Object.
+
+| Trường                  | Kiểu       |
+| ----------------------- | ---------- |
+| id                      | binary(24) |
+| object_id               | binary(24) |
+| application_identity_id | binary(24) |
+| application_name        | varchar    |
+| resource_type           | varchar    |
+| resource_id             | varchar    |
+| created_at              | timestamp  |
+
+Ví dụ:
+
+```text
+Object A
+
+được sử dụng bởi
+
+Xime Social
+
+POST
+
+POST_123
+```
+
+Data Service không quan tâm Service nào đang dùng.
+
+Data Service chỉ quan tâm Application nào đang sở hữu quan hệ nghiệp vụ với Object.
+
+---
+
+## 7. object_tag
 
 Hỗ trợ tìm kiếm.
 
-| Trường | Kiểu | Mô tả |
-|---|---|---|
-| `object_id` | binary(24) | |
-| `tag` | varchar | VD: invoice, 2026, customer-a |
+| Trường    | Kiểu       |
+| --------- | ---------- |
+| object_id | binary(24) |
+| tag       | varchar    |
+
+Ví dụ:
+
+```text
+invoice
+contract
+customer-a
+```
 
 ---
 
-## Bảng: object_share (tương lai)
+## 8. object_share
 
-Hỗ trợ public sharing (tương tự Google Drive public link).
+Public Sharing.
 
-| Trường | Kiểu | Mô tả |
-|---|---|---|
-| `id` | binary(24) | |
-| `object_id` | binary(24) | |
-| `share_token` | varchar | Token public |
-| `expires_at` | timestamp | |
-| `created_at` | timestamp | |
+| Trường      | Kiểu       |
+| ----------- | ---------- |
+| id          | binary(24) |
+| object_id   | binary(24) |
+| share_token | varchar    |
+| expires_at  | timestamp  |
+| created_at  | timestamp  |
 
 ---
 
-## Bảng: object_audit
+## 9. object_audit
 
-Nếu chưa có audit-service riêng.
+Audit cục bộ nếu chưa có Audit Service.
 
-| Trường | Kiểu | Mô tả |
-|---|---|---|
-| `id` | binary(24) | |
-| `object_id` | binary(24) | |
-| `actor_identity_id` | binary(24) | |
-| `action` | varchar | READ, DOWNLOAD, UPDATE, DELETE, SHARE |
-| `created_at` | timestamp | |
+| Trường             | Kiểu       |
+| ------------------ | ---------- |
+| id                 | binary(24) |
+| object_id          | binary(24) |
+| actor_identity_id  | binary(24) |
+| actor_subject_type | varchar    |
+| actor_name         | varchar    |
+| action             | varchar    |
+| created_at         | timestamp  |
+
+Ví dụ:
+
+```text
+READ
+DOWNLOAD
+UPDATE
+DELETE
+RESTORE
+SHARE
+```
+
+---
+
+## Tương lai
+
+## object_governance
+
+Governance Layer.
+
+Ví dụ:
+
+```text
+legal_hold
+retention_policy
+moderation_lock
+```
+
+---
+
+## object_replica
+
+Replication Layer.
+
+Ví dụ:
+
+```text
+PRIMARY
+SECONDARY
+ARCHIVE
+```
 
 ---
 
 ## Index quan trọng
 
+## data_object
+
+```text
+(owner_identity_id)
+
+(owner_identity_id, status)
+
+(owner_identity_id, object_type)
+
+(shard_id)
+
+(status)
 ```
-data_object:
-  (owner_identity_id, tenant_id, status, object_type)
 
-object_permission:
-  (subject_identity_id, object_id)
+---
 
-object_reference:
-  (object_id)
+## object_permission
 
-object_version:
-  (object_id)
+```text
+(subject_identity_id)
+
+(object_id)
+
+(subject_identity_id, object_id)
+```
+
+---
+
+## subject_permission
+
+```text
+(subject_identity_id)
+
+(permission)
+```
+
+---
+
+## object_reference
+
+```text
+(application_identity_id)
+
+(object_id)
 ```
 
 ---
 
 ## Sharding Model
 
-```
-identity_id → hash → partition → data shard
+```text
+owner_identity_id
+
+↓
+
+hash
+
+↓
+
+partition
+
+↓
+
+data shard
 ```
 
-- Identity quyết định data placement
-- Không đổi shard sau khi tạo
-- Mỗi shard có bộ bảng riêng hoàn toàn độc lập
+Ví dụ:
 
-### Ví dụ cấu trúc mỗi shard
+```text
+USER_A
 
+↓
+
+DATA_SHARD_07
 ```
-DATA_SHARD_01
-├── data_object
-├── object_version
-├── object_permission
-├── object_capability
-├── object_reference
-├── object_tag
-└── object_audit
 
-DATA_SHARD_02
-├── (tương tự)
-```
+Placement là bất biến.
+
+Không đổi shard sau khi tạo.
 
 ---
 
-## Tách Storage khỏi Database
+## Storage Architecture
 
-```
+```text
 PostgreSQL
-  └── data_object
-        └── storage_pointer (relative path)
-              └── Local Disk (served via FastAPI)
-                    └── binary file thực tế
+
+↓
+
+data_object
+
+↓
+
+storage_pointer
+
+↓
+
+Blob Storage
 ```
 
-Lợi ích:
-- Database nhỏ, hiệu quả
-- Scale blob storage độc lập với metadata
-- Backup riêng biệt
-- Dễ đổi storage backend
+Ví dụ:
+
+```text
+Local Disk
+MinIO
+S3
+Ceph
+```
+
+Database không lưu binary.
+
+Database chỉ lưu metadata.
+
+---
+
+## Kiến trúc Database — Tổng kết
+
+| Nguyên tắc                  | Mô tả                           |
+| --------------------------- | ------------------------------- |
+| Subject Ownership           | Dữ liệu thuộc Subject           |
+| Application Aware           | Application là Subject hợp lệ   |
+| Runtime-Service Independent | Không phụ thuộc Service Runtime |
+| System Permission           | Quyền hệ thống riêng            |
+| Object Permission           | ACL riêng                       |
+| Shared Nothing              | Mỗi Shard độc lập               |
+| Immutable Versioning        | Version không sửa               |
+| Auditability                | Mọi hành động đều truy vết      |
+| Identity-Centric Placement  | Placement theo Identity         |
+| Distributed First           | Thiết kế cho phân tán           |

@@ -4,7 +4,7 @@ import grpc
 
 from app.api.grpc.generated.object_service_pb2 import ArchiveObjectResponse, RestoreObjectResponse
 from app.api.grpc.generated.object_service_pb2_grpc import ObjectServiceServicer
-from app.api.grpc.mapper.ObjectGrpcMapper import ObjectGrpcMapper  # injected via DI
+from app.api.grpc.mapper.ObjectGrpcMapper import ObjectGrpcMapper
 from app.application.dto.object.ArchiveObjectCommand import ArchiveObjectCommand
 from app.application.dto.object.RestoreObjectCommand import RestoreObjectCommand
 from app.application.service.authorization.JwtVerificationService import JwtVerificationService
@@ -14,12 +14,12 @@ from app.application.usecase.object.DeleteObjectUseCase import DeleteObjectUseCa
 from app.application.usecase.object.DownloadObjectUseCase import DownloadObjectUseCase
 from app.application.usecase.object.GetObjectUseCase import GetObjectUseCase
 from app.application.usecase.object.RestoreObjectUseCase import RestoreObjectUseCase
-from app.common.constants.ObjectStatus import ObjectStatus
 from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
 from app.common.exception.InvalidTokenException import InvalidTokenException
 from app.common.exception.ObjectAlreadyDeletedException import ObjectAlreadyDeletedException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 
 _log = logging.getLogger(__name__)
 
@@ -60,7 +60,9 @@ class ObjectGrpcHandler(ObjectServiceServicer):
     async def CreateObject(self, request, context):
         try:
             claims = await self._jwt.verify(self._extract_token(context))
-            command = self._mapper.to_create_command(request, claims.identity_id)
+            command = self._mapper.to_create_command(
+                request, claims.identity_id, claims.subject_type, claims.name
+            )
             result = await self._create.execute(command)
             return self._mapper.to_create_response(result)
         except InvalidTokenException as e:
@@ -74,7 +76,9 @@ class ObjectGrpcHandler(ObjectServiceServicer):
     async def GetObject(self, request, context):
         try:
             claims = await self._jwt.verify(self._extract_token(context))
-            query = self._mapper.to_get_query(request, claims.identity_id)
+            query = self._mapper.to_get_query(
+                request, claims.identity_id, claims.subject_type, claims.name
+            )
             obj = await self._get.execute(query)
             return self._mapper.to_get_response(obj)
         except InvalidTokenException as e:
@@ -90,7 +94,9 @@ class ObjectGrpcHandler(ObjectServiceServicer):
     async def DownloadObject(self, request, context):
         try:
             claims = await self._jwt.verify(self._extract_token(context))
-            query = self._mapper.to_download_query(request, claims.identity_id)
+            query = self._mapper.to_download_query(
+                request, claims.identity_id, claims.subject_type, claims.name
+            )
             result = await self._download.execute(query)
             return self._mapper.to_download_response(result)
         except InvalidTokenException as e:
@@ -106,7 +112,9 @@ class ObjectGrpcHandler(ObjectServiceServicer):
     async def DeleteObject(self, request, context):
         try:
             claims = await self._jwt.verify(self._extract_token(context))
-            command = self._mapper.to_delete_command(request, claims.identity_id)
+            command = self._mapper.to_delete_command(
+                request, claims.identity_id, claims.subject_type, claims.name
+            )
             await self._delete.execute(command)
             return self._mapper.to_delete_response()
         except InvalidTokenException as e:
@@ -126,6 +134,8 @@ class ObjectGrpcHandler(ObjectServiceServicer):
             claims = await self._jwt.verify(self._extract_token(context))
             command = ArchiveObjectCommand(
                 requester_identity_id=claims.identity_id,
+                requester_subject_type=claims.subject_type,
+                requester_name=claims.name,
                 object_id=request.object_id,
             )
             await self._archive.execute(command)
@@ -150,6 +160,8 @@ class ObjectGrpcHandler(ObjectServiceServicer):
             claims = await self._jwt.verify(self._extract_token(context))
             command = RestoreObjectCommand(
                 requester_identity_id=claims.identity_id,
+                requester_subject_type=claims.subject_type,
+                requester_name=claims.name,
                 object_id=request.object_id,
             )
             await self._restore.execute(command)

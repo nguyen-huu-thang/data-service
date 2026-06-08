@@ -5,9 +5,9 @@ from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePor
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.service.audit.AuditService import AuditService
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.constants.Capability import Capability
-from app.common.constants.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.permission.capability.AclCapability import AclCapability
 
 
 class DownloadVersionUseCase:
@@ -32,7 +32,7 @@ class DownloadVersionUseCase:
             raise ObjectNotFoundException(query.object_id)
 
         await self._auth.require_capability(
-            query.requester_identity_id, obj, Capability.DOWNLOAD
+            query.requester_identity_id, obj, AclCapability.DOWNLOAD
         )
 
         version = await self._load_version.find_by_id(query.version_id)
@@ -43,12 +43,16 @@ class DownloadVersionUseCase:
         data = await self._blob.download(version.storage_pointer)
 
         await self._audit.record(
-            obj.object_id, query.requester_identity_id, "DOWNLOAD_VERSION"
+            obj.object_id,
+            query.requester_identity_id,
+            query.requester_subject_type,
+            query.requester_name,
+            "DOWNLOAD_VERSION",
         )
 
         return DownloadVersionResult(
             data=data,
-            mime_type=version.mime_type,
-            content_hash=version.content_hash,
+            mime_type=version.mime_type.value,
+            content_hash=version.content_hash.value,
             version_number=version.version_number,
         )

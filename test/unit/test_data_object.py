@@ -6,9 +6,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.common.constants.ObjectStatus import ObjectStatus
-from app.common.constants.Visibility import Visibility
-from app.domain.object.DataObject import VALID_TRANSITIONS
+from domain.object.valueobject.ObjectStatus import ObjectStatus
+from domain.object.valueobject.ObjectVisibility import ObjectVisibility
 from test.conftest import _T0, make_object
 
 _T1 = datetime(2026, 6, 3, tzinfo=timezone.utc)  # later than _T0
@@ -34,10 +33,15 @@ def test_soft_delete_transitions_to_soft_deleted():
     assert obj.status == ObjectStatus.ACTIVE
 
 def test_restore_transitions_to_active():
+    obj = make_object(status=ObjectStatus.SOFT_DELETED)
+    restored = obj.restore(_T1)
+    assert restored.status == ObjectStatus.ACTIVE
+    assert obj.status == ObjectStatus.SOFT_DELETED
+
+def test_restore_from_archived_transitions_to_active():
     obj = make_object(status=ObjectStatus.ARCHIVED)
     restored = obj.restore(_T1)
     assert restored.status == ObjectStatus.ACTIVE
-    assert obj.status == ObjectStatus.ARCHIVED
 
 def test_purge_transitions_to_purged():
     obj = make_object(status=ObjectStatus.SOFT_DELETED)
@@ -63,6 +67,12 @@ def test_update_version_updates_updated_at():
     updated = obj.update_version(b'\xBB' * 24, _T1)
     assert updated.updated_at == _T1
 
+def test_increase_permission_version_increments_by_one():
+    obj = make_object(permission_version=3)
+    updated = obj.increase_permission_version(_T1)
+    assert updated.permission_version == 4
+    assert obj.permission_version == 3  # original unchanged
+
 
 # ── State machine — can_transition_to ────────────────────────────────────────
 
@@ -75,10 +85,10 @@ def test_update_version_updates_updated_at():
     # ARCHIVED → valid
     (ObjectStatus.ARCHIVED, ObjectStatus.ACTIVE,       True),
     (ObjectStatus.ARCHIVED, ObjectStatus.SOFT_DELETED, True),
-    # ARCHIVED → invalid
+    # ARCHIVED → invalid (can't jump straight to PURGED)
     (ObjectStatus.ARCHIVED, ObjectStatus.PURGED,       False),
     # SOFT_DELETED → valid
-    (ObjectStatus.SOFT_DELETED, ObjectStatus.ACTIVE, True),
+    (ObjectStatus.SOFT_DELETED, ObjectStatus.ACTIVE, True),   # restore
     (ObjectStatus.SOFT_DELETED, ObjectStatus.PURGED, True),
     # SOFT_DELETED → invalid
     (ObjectStatus.SOFT_DELETED, ObjectStatus.ARCHIVED, False),
@@ -91,18 +101,8 @@ def test_can_transition_to(status, target, expected):
     obj = make_object(status=status)
     assert obj.can_transition_to(target) == expected
 
-def test_valid_transitions_dict_covers_all_statuses():
-    all_statuses = set(ObjectStatus)
-    assert set(VALID_TRANSITIONS.keys()) == all_statuses
-
 
 # ── Domain queries ────────────────────────────────────────────────────────────
-
-def test_is_accessible_only_for_active():
-    assert make_object(status=ObjectStatus.ACTIVE).is_accessible()
-    assert not make_object(status=ObjectStatus.ARCHIVED).is_accessible()
-    assert not make_object(status=ObjectStatus.SOFT_DELETED).is_accessible()
-    assert not make_object(status=ObjectStatus.PURGED).is_accessible()
 
 def test_is_deleted_for_soft_deleted_and_purged():
     assert not make_object(status=ObjectStatus.ACTIVE).is_deleted()
@@ -111,6 +111,6 @@ def test_is_deleted_for_soft_deleted_and_purged():
     assert make_object(status=ObjectStatus.PURGED).is_deleted()
 
 def test_is_public_only_for_public_visibility():
-    assert make_object(visibility=Visibility.PUBLIC).is_public()
-    assert not make_object(visibility=Visibility.PRIVATE).is_public()
-    assert not make_object(visibility=Visibility.INTERNAL).is_public()
+    assert make_object(visibility=ObjectVisibility.PUBLIC).is_public()
+    assert not make_object(visibility=ObjectVisibility.PRIVATE).is_public()
+    assert not make_object(visibility=ObjectVisibility.INTERNAL).is_public()

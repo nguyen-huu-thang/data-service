@@ -13,11 +13,19 @@ class AuditService:
         self,
         object_id: bytes,
         actor_identity_id: bytes,
+        actor_subject_type: str,
+        actor_name: str,
         action: str,
     ) -> None:
         # Audit failure must never block the main operation
         try:
-            await self._save.record(object_id, actor_identity_id, action)
+            await self._save.record(
+                object_id,
+                actor_identity_id,
+                actor_subject_type,
+                actor_name,
+                action,
+            )
         except Exception:
             _log.warning(
                 "Audit record failed — object=%s actor=%s action=%s",

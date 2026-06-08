@@ -1,0 +1,22 @@
+from enum import StrEnum
+
+
+class AuditAction(StrEnum):
+    CREATE = "CREATE"
+
+    READ = "READ"
+    DOWNLOAD = "DOWNLOAD"
+
+    UPDATE = "UPDATE"
+
+    DELETE = "DELETE"
+    RESTORE = "RESTORE"
+
+    SHARE = "SHARE"
+
+    ARCHIVE = "ARCHIVE"
+
+    CREATE_VERSION = "CREATE_VERSION"
+
+    GRANT_PERMISSION = "GRANT_PERMISSION"
+    REVOKE_PERMISSION = "REVOKE_PERMISSION"

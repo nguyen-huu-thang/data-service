@@ -11,7 +11,7 @@ import pytest
 
 from app.application.dto.object.RestoreObjectCommand import RestoreObjectCommand
 from app.application.usecase.object.RestoreObjectUseCase import RestoreObjectUseCase
-from app.common.constants.ObjectStatus import ObjectStatus
+from domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
@@ -21,7 +21,12 @@ pytestmark = pytest.mark.asyncio
 
 
 def _cmd(requester: bytes = OWNER_ID) -> RestoreObjectCommand:
-    return RestoreObjectCommand(requester_identity_id=requester, object_id=OBJECT_ID)
+    return RestoreObjectCommand(
+        requester_identity_id=requester,
+        requester_subject_type="HUMAN",
+        requester_name="test",
+        object_id=OBJECT_ID,
+    )
 
 
 def _make_uc(*, obj=None):
@@ -60,7 +65,7 @@ async def test_records_audit_on_restore():
         audit_service=audit,
     )
     await uc.execute(_cmd())
-    audit.record.assert_called_once_with(OBJECT_ID, OWNER_ID, "RESTORE")
+    audit.record.assert_called_once_with(OBJECT_ID, OWNER_ID, "HUMAN", "test", "RESTORE")
 
 
 # ── Invalid transitions ───────────────────────────────────────────────────────

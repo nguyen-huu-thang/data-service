@@ -14,6 +14,8 @@ class SqlAlchemyAuditRepository:
         self,
         object_id: bytes,
         actor_identity_id: bytes,
+        actor_subject_type: str,
+        actor_name: str,
         action: str,
     ) -> None:
         session = self._sessions.current()
@@ -21,6 +23,8 @@ class SqlAlchemyAuditRepository:
             audit_id=generate_id(),
             object_id=object_id,
             actor_identity_id=actor_identity_id,
+            actor_subject_type=actor_subject_type,
+            actor_name=actor_name,
             action=action,
             created_at=datetime.now(timezone.utc),
         )

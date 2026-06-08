@@ -5,11 +5,14 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
-from app.common.constants.ObjectStatus import ObjectStatus
-from app.common.constants.ObjectType import ObjectType
-from app.common.constants.Visibility import Visibility
-from app.domain.object.DataObject import DataObject
-from app.domain.object.ObjectVersion import ObjectVersion
+# Domain imports — use bare paths (app/ is in pythonpath via pyproject.toml)
+from domain.object.model.DataObject import DataObject
+from domain.object.model.ObjectVersion import ObjectVersion
+from domain.object.valueobject.ContentHash import ContentHash
+from domain.object.valueobject.MimeType import MimeType
+from domain.object.valueobject.ObjectStatus import ObjectStatus
+from domain.object.valueobject.ObjectType import ObjectType
+from domain.object.valueobject.ObjectVisibility import ObjectVisibility
 
 _T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
@@ -25,14 +28,17 @@ def make_object(**overrides) -> DataObject:
     """Build a minimal valid DataObject for unit tests."""
     defaults: dict = dict(
         object_id=OBJECT_ID,
-        owner_identity_id=OWNER_ID,
+        tenant_id=None,
         shard_id="DATA_SHARD_01",
-        object_type=ObjectType.IMAGE,
-        visibility=Visibility.PRIVATE,
+        owner_identity_id=OWNER_ID,
+        owner_subject_type="HUMAN",
+        object_type=ObjectType("IMAGE"),
+        visibility=ObjectVisibility.PRIVATE,
         status=ObjectStatus.ACTIVE,
-        storage_provider="MINIO",
+        current_version_id=None,
+        storage_provider="LOCAL",
         storage_pointer="test/path/file.jpg",
-        metadata_json={},
+        metadata={},
         permission_version=1,
         created_at=_T0,
         updated_at=_T0,
@@ -48,10 +54,11 @@ def make_version(**overrides) -> ObjectVersion:
         object_id=OBJECT_ID,
         version_number=1,
         storage_pointer="test/path/v1.jpg",
-        content_hash="ab" * 32,   # 64-char hex (SHA-256 shaped)
+        content_hash=ContentHash("ab" * 32),
         content_size=1024,
-        mime_type="image/jpeg",
-        created_by=OWNER_ID,
+        mime_type=MimeType("image/jpeg"),
+        created_by_identity_id=OWNER_ID,
+        created_by_subject_type="HUMAN",
         created_at=_T0,
     )
     defaults.update(overrides)

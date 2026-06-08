@@ -13,12 +13,14 @@ from app.application.port.outbound.version.LoadVersionPort import LoadVersionPor
 from app.application.port.outbound.version.SaveVersionPort import SaveVersionPort
 from app.application.service.audit.AuditService import AuditService
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.constants.Capability import Capability
-from app.common.constants.ObjectStatus import ObjectStatus
 from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.util.IdGenerator import generate_id
-from app.domain.object.ObjectVersion import ObjectVersion
+from app.domain.object.model.ObjectVersion import ObjectVersion
+from app.domain.object.valueobject.ContentHash import ContentHash
+from app.domain.object.valueobject.MimeType import MimeType
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.permission.capability.AclCapability import AclCapability
 
 _log = logging.getLogger(__name__)
 
@@ -54,7 +56,7 @@ class CreateVersionUseCase:
             raise InvalidObjectStateException(obj.status.value, ObjectStatus.ACTIVE.value)
 
         await self._auth.require_capability(
-            command.requester_identity_id, obj, Capability.WRITE
+            command.requester_identity_id, obj, AclCapability.WRITE
         )
 
         content_hash = hashlib.sha256(command.data).hexdigest()
@@ -77,10 +79,11 @@ class CreateVersionUseCase:
             object_id=command.object_id,
             version_number=next_version_number,
             storage_pointer=storage_pointer,
-            content_hash=content_hash,
+            content_hash=ContentHash(content_hash),
             content_size=content_size,
-            mime_type=command.content_type,
-            created_by=command.requester_identity_id,
+            mime_type=MimeType(command.content_type),
+            created_by_identity_id=command.requester_identity_id,
+            created_by_subject_type=command.requester_subject_type,
             created_at=now,
         )
 
@@ -98,7 +101,13 @@ class CreateVersionUseCase:
             )
             raise
 
-        await self._audit.record(command.object_id, command.requester_identity_id, "UPDATE")
+        await self._audit.record(
+            command.object_id,
+            command.requester_identity_id,
+            command.requester_subject_type,
+            command.requester_name,
+            "UPDATE",
+        )
 
         return CreateVersionResult(
             version_id=version_id,

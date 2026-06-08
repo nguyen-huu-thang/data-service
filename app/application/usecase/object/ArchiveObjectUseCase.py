@@ -7,10 +7,10 @@ from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.application.service.audit.AuditService import AuditService
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.constants.Capability import Capability
-from app.common.constants.ObjectStatus import ObjectStatus
 from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.permission.capability.AclCapability import AclCapability
 
 
 class ArchiveObjectUseCase:
@@ -41,10 +41,16 @@ class ArchiveObjectUseCase:
                 raise InvalidObjectStateException(obj.status.value, ObjectStatus.ARCHIVED.value)
 
             await self._auth.require_capability(
-                command.requester_identity_id, obj, Capability.DELETE
+                command.requester_identity_id, obj, AclCapability.DELETE
             )
 
             archived = obj.archive(now)
             await self._save.update(archived)
 
-            await self._audit.record(obj.object_id, command.requester_identity_id, "ARCHIVE")
+            await self._audit.record(
+                obj.object_id,
+                command.requester_identity_id,
+                command.requester_subject_type,
+                command.requester_name,
+                "ARCHIVE",
+            )

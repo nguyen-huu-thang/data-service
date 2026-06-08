@@ -1,10 +1,12 @@
 # Luồng xác thực — Service Interaction Flows
 
-> Tài liệu này mô tả cách các service trong Base Platform phối hợp với nhau, tập trung vào những gì Data Service cần biết để tích hợp đúng.
+> Tài liệu mô tả cách các service trong Base Platform phối hợp với nhau.
+>
+> Tài liệu tập trung vào những gì Data Service cần biết để tích hợp đúng với Identity Service, Trust Service và Subject-based Authorization Model.
 
 ---
 
-## 1. Login Flow (Client → Identity → User → Trust)
+## 1. Login Flow
 
 ```text
 Client
@@ -13,164 +15,772 @@ Client
     │
     ▼
 Identity Service
-  1. Normalize identifier (trim, lowercase, unicode NFKC)
-  2. Resolve shard:
-       └── userShardId hint có? → dùng trực tiếp
-       └── Không → gọi Search Service lookup
-  3. gRPC → User Service shard (VD: VN01)
-       VerifyCredentialRequest { identifier, credential, shard_id, user_agent }
+  1. Normalize identifier
+  2. Resolve shard
+  3. Verify credential với Subject Owner Service
+       (ví dụ: user-service)
     │
     ▼
 User Service
-  4. Lookup user bằng identifier (normalized)
-  5. Verify credential (BCrypt match)
-  6. Trả VerifyCredentialResponse { success, VerifiedIdentity, failure_reason }
+  4. Verify credential
+  5. Trả về VerifiedIdentity
+       {
+         identity_id,
+         subject_type,
+         tenant_id
+       }
     │
     ▼
 Identity Service
-  7. Nếu success → resolve current signing key (cache từ Trust Service)
-  8. Tạo refresh token (với familyId mới)
-  9. Tạo access token cho mỗi verifier service đã đăng ký:
-       - access_token_A { aud: ["data-service"] }
-       - access_token_B { aud: ["profile-service"] }
-       - access_token_C { aud: ["notification-service"] }
-  10. Trả LoginResponse về Client
+  6. Generate access token
+  7. Generate refresh token
+  8. Sign JWT bằng signing key từ Trust Service
     │
     ▼
 Client
-  Nhận { accessTokens: [...], refreshToken, userShardId }
-  Dùng đúng access token khi gọi đúng service
+  Nhận Access Token và Refresh Token
 ```
 
 ---
 
-## 2. Request Flow vào Data Service
+## 2. Subject Model
+
+Data Service hoạt động dựa trên Subject.
+
+Subject là bất kỳ thực thể nào có thể sở hữu dữ liệu hoặc được cấp quyền.
+
+Ví dụ:
 
 ```text
-Client
-  gRPC/REST → Data Service
-  Header: Authorization: Bearer <access_token_for_data_service>
-    │
-    ▼
-Data Service — JWT Verification
-  1. Extract JWT từ header
-  2. Parse header → lấy kid (key ID)
-  3. Lookup kid trong VerificationKeyCache (in-memory)
-       └── Cache hit + can_verify(now) → dùng public key
-       └── Cache miss → sync từ Trust Service → retry
-  4. Verify signature với public key
-  5. Validate claims:
-       - exp > now (chưa hết hạn)
-       - aud chứa "data-service"
-       - iss == "identity-service"
-       - token_version (nếu cần check force logout)
-  6. Extract identity_id từ sub
-    │
-    ▼
-Data Service — Authorization
-  7. Load ACL từ DB: ObjectPermission where subject_identity_id = identity_id
-  8. Evaluate capability (READ/WRITE/DELETE/SHARE/DOWNLOAD)
-  9. ALLOW / DENY
-    │
-    ▼
-Data Service — Execute
-  10. Thực hiện usecase
-  11. Ghi audit trail
+HUMAN
+BOT
+AI_AGENT
+APPLICATION
+```
+
+Mỗi Subject có:
+
+```text
+identity_id
+subject_type
+name
+```
+
+Ví dụ:
+
+```text
+identity_id = 01ABC...
+subject_type = HUMAN
+name = Nguyen Van A
+```
+
+hoặc:
+
+```text
+identity_id = 01XYZ...
+subject_type = APPLICATION
+name = Xime Social
+```
+
+Data Service sử dụng Subject để:
+
+* Ownership
+* Authorization
+* Audit
+* Logging
+
+---
+
+## 3. Runtime Service Identity
+
+Data Service phân biệt rõ:
+
+## Subject Identity
+
+Đại diện cho actor kinh doanh.
+
+Ví dụ:
+
+```text
+HUMAN
+BOT
+APPLICATION
+```
+
+Được biểu diễn bằng:
+
+```text
+identity_id
+subject_type
 ```
 
 ---
 
-## 3. JWT Public Key Sync Flow
+## Service Identity
 
-Data Service KHÔNG gọi Trust Service per-request. Thay vào đó cache public key và sync định kỳ.
+Đại diện cho tiến trình runtime.
+
+Ví dụ:
 
 ```text
-Data Service Startup
-  → gọi Trust Service gRPC (GetVerificationKeys)
-  → nhận danh sách KeyContext { key_id, public_key, algorithm, activate_at, expires_at }
-  → load vào VerificationKeyCache
+post-service
+feed-service
+search-service
+identity-service
+```
 
-Background (định kỳ ~5 phút hoặc khi key miss)
-  → Trust Service: GetVerificationKeys (signer=identity, verifier=data-service)
-  → update cache
-  → clean expired keys (can_verify(now) == False)
+Được biểu diễn bằng:
 
-Request flow
-  → lookup kid trong cache → verify JWT
-  → nếu kid không tồn tại → trigger background sync → retry 1 lần
+```text
+service_id
+certificate
+shard_id
+```
+
+Được Trust Service xác thực bằng mTLS.
+
+Service không sở hữu dữ liệu.
+
+Service chỉ thực hiện hành động thay mặt Subject.
+
+---
+
+## 4. Request Flow vào Data Service
+
+```text
+Client / Application
+
+↓
+
+Data Service
+
+Authorization:
+Bearer JWT
+
+mTLS:
+Service Certificate
 ```
 
 ---
 
-## 4. mTLS Setup Flow
+## Bước 1 — Verify Service Identity
 
-Data Service thiết lập mTLS khi bootstrap, không phải per-request.
+Data Service xác thực:
 
 ```text
-Data Service Startup
-  → gọi Trust Service (gửi cert_refresh_token từ config / bootstrap token)
-  → Trust verify token: is_deleted=FALSE, expires_at > now
-  → Trust issue certificate mới (private_key_encrypted, public_cert)
-  → Data Service decrypt private key, load vào TLS context
-  → Sử dụng cert này cho TẤT CẢ outbound gRPC calls đến các service khác
+service_id
+shard_id
+certificate
+```
 
-Cert Rotation (định kỳ trước khi cert hết hạn)
-  → Dùng cert_refresh_token mới nhận được từ lần issue trước
-  → Gọi Trust Service rotate
-  → Nhận cert mới + refresh token mới
+thông qua mTLS.
+
+Ví dụ:
+
+```text
+post-service
+```
+
+hoặc:
+
+```text
+feed-service
 ```
 
 ---
 
-## 5. Shard Resolution cho Data Service
-
-Khi client (application service) muốn upload/download object:
+## Bước 2 — Verify JWT
 
 ```text
+Extract JWT
+
+↓
+
+Verify Signature
+
+↓
+
+Validate Claims
+```
+
+Kiểm tra:
+
+```text
+exp
+nbf
+iss
+aud
+```
+
+Ví dụ:
+
+```text
+aud = data-service
+```
+
+---
+
+## Bước 3 — Resolve Subject
+
+Lấy:
+
+```text
+sub
+```
+
+từ JWT.
+
+Ví dụ:
+
+```text
+identity_id = APP001
+```
+
+Sau đó:
+
+```text
+subject_cache
+
+↓
+
+subject_type
+
+↓
+
+name
+```
+
+Ví dụ:
+
+```text
+APPLICATION
+
+Xime Social
+```
+
+hoặc:
+
+```text
+HUMAN
+
+Nguyen Van A
+```
+
+Kết quả:
+
+```text
+Authenticated Subject
+```
+
+---
+
+## 5. Authorization Flow
+
+Data Service sử dụng nhiều lớp quyền.
+
+```text
+Request
+
+↓
+
+Subject Resolution
+
+↓
+
+System Permission Check
+
+↓
+
+Object Permission Check
+
+↓
+
+Ownership Check
+
+↓
+
+Visibility Check
+
+↓
+
+ALLOW / DENY
+```
+
+---
+
+## 6. System Permission Check
+
+Kiểm tra quyền hệ thống.
+
+Nguồn dữ liệu:
+
+```text
+subject_permission
+```
+
+(cache cục bộ)
+
+Ví dụ:
+
+```text
+DATA_READ_ANY
+DATA_WRITE_ANY
+DATA_DELETE_ANY
+DATA_RESTORE_ANY
+DATA_SHARE_ANY
+```
+
+---
+
+Ví dụ:
+
+```text
+Subject:
+Xime Moderation
+
+Permission:
+DATA_DELETE_ANY
+```
+
+Có thể:
+
+```text
+DELETE object
+```
+
+mà không cần là Owner.
+
+---
+
+Ví dụ:
+
+```text
+Subject:
+Xime Backup
+
+Permission:
+DATA_READ_ANY
+```
+
+Có thể đọc toàn bộ dữ liệu.
+
+---
+
+## 7. Object Permission Check
+
+Nếu Subject không có quyền hệ thống phù hợp:
+
+```text
+↓
+
+Object Permission
+```
+
+Kiểm tra ACL:
+
+```text
+OWNER
+EDITOR
+VIEWER
+```
+
+Ví dụ:
+
+```text
+Object A
+
+User A → OWNER
+User B → EDITOR
+Bot C  → VIEWER
+```
+
+---
+
+## 8. Ownership Check
+
+Nếu ACL không tồn tại:
+
+Kiểm tra:
+
+```text
+owner_identity_id
+owner_subject_type
+```
+
+Ví dụ:
+
+```text
+owner_identity_id = USER123
+owner_subject_type = HUMAN
+```
+
+Nếu Subject hiện tại trùng Owner:
+
+```text
+ALLOW
+```
+
+---
+
+## 9. Visibility Check
+
+Kiểm tra:
+
+```text
+PRIVATE
+INTERNAL
+PUBLIC
+```
+
+---
+
+## PRIVATE
+
+Chỉ Owner hoặc Subject được cấp quyền.
+
+---
+
+## INTERNAL
+
+Theo policy của Application.
+
+---
+
+## PUBLIC
+
+Không yêu cầu Authorization.
+
+---
+
+## 10. JWT Public Key Sync Flow
+
+Data Service không gọi Trust Service cho mỗi request.
+
+---
+
+## Startup
+
+```text
+Data Service
+
+↓
+
+Trust Service
+
+↓
+
+GetVerificationKeys
+```
+
+Nhận:
+
+```text
+KeyContext
+```
+
+và lưu vào:
+
+```text
+VerificationKeyCache
+```
+
+---
+
+## Runtime
+
+```text
+JWT
+
+↓
+
+kid
+
+↓
+
+VerificationKeyCache
+
+↓
+
+Public Key
+
+↓
+
+Verify
+```
+
+---
+
+## Cache Miss
+
+```text
+JWT
+
+↓
+
+Unknown kid
+
+↓
+
+Background Sync
+
+↓
+
+Trust Service
+
+↓
+
+Retry
+```
+
+---
+
+## 11. Subject Cache Sync Flow
+
+Data Service cache Subject Information.
+
+Source of truth nằm ở Subject Service.
+
+Ví dụ:
+
+```text
+user-service
+application-service
+```
+
+---
+
+Thông tin cache:
+
+```text
+identity_id
+subject_type
+name
+```
+
+---
+
+Sync bằng:
+
+```text
+Event
+```
+
+hoặc:
+
+```text
+Periodic Sync
+```
+
+---
+
+## 12. Permission Cache Sync Flow
+
+Data Service cache quyền hệ thống.
+
+Source of truth nằm ở:
+
+```text
+application-service
+subject-service
+```
+
+---
+
+Ví dụ:
+
+```text
+Xime Social
+
+↓
+
+DATA_CREATE_OBJECT
+DATA_READ_OBJECT
+```
+
+---
+
+Khi quyền thay đổi:
+
+```text
+Permission Changed
+
+↓
+
+Data Service
+
+↓
+
+Update subject_permission
+```
+
+---
+
+## 13. mTLS Setup Flow
+
+mTLS được thiết lập khi bootstrap.
+
+```text
+Data Service
+
+↓
+
+Trust Service
+
+↓
+
+Issue Certificate
+
+↓
+
+Certificate Cache
+
+↓
+
+Outbound gRPC Calls
+```
+
+---
+
+Certificate được dùng cho:
+
+```text
+Identity Service
+User Service
 Application Service
-  → Biết identity_id của user (từ JWT của user gửi lên)
-  → Tính shard: hash(identity_id) → DATA_SHARD_XX
-  → Lookup shard host từ Trust Service (hoặc local cache)
-  → Gọi thẳng Data Service shard tương ứng
-
-Data Service shard
-  → Verify JWT
-  → Verify shard_id trong request khớp với shard của mình
-  → Thực hiện operation
+Search Service
 ```
-
-Nguyên tắc: **deterministic routing, không broadcast toàn cluster**.
 
 ---
 
-## 6. Token Hierarchy
+## 14. Shard Resolution
+
+Placement của dữ liệu dựa trên Owner Identity.
+
+```text
+owner_identity_id
+
+↓
+
+hash
+
+↓
+
+partition
+
+↓
+
+data shard
+```
+
+Ví dụ:
+
+```text
+APP001
+
+↓
+
+DATA_SHARD_03
+```
+
+hoặc:
+
+```text
+USER123
+
+↓
+
+DATA_SHARD_07
+```
+
+Placement là bất biến.
+
+Không thay đổi sau khi tạo.
+
+---
+
+## 15. Audit Flow
+
+Mọi hành động đều phải có khả năng truy vết.
+
+Audit lưu:
+
+```text
+actor_identity_id
+actor_subject_type
+actor_name
+service_id
+action
+object_id
+timestamp
+```
+
+Ví dụ:
+
+```text
+APP001
+
+APPLICATION
+
+Xime Social
+
+post-service
+
+DELETE
+
+OBJECT_123
+```
+
+---
+
+## Token Hierarchy
 
 ```text
 Trust Service
-  ├── generate key pair (RSA/EC/EdDSA)
-  ├── private_key_encrypted → Identity Service
-  └── public_key → tất cả verifier services (incl. Data Service)
+  │
+  ├── Generate Key Pair
+  │
+  ├── Public Key
+  │
+  ▼
 
 Identity Service
-  ├── dùng private_key ký JWT
-  └── JWT { sub=identity_id, aud=[data-service, ...], token_version }
+  │
+  ├── Sign JWT
+  │
+  ▼
 
-Client
-  └── gửi JWT khi gọi Data Service
+Subject
+  │
+  ├── identity_id
+  ├── subject_type
+  └── permissions
+
+  ▼
 
 Data Service
-  └── verify JWT bằng public_key từ Trust Service
+  │
+  ├── Verify JWT
+  ├── Resolve Subject
+  ├── Evaluate Permissions
+  └── Execute Request
 ```
 
 ---
 
-## Các điểm Data Service phải implement
+## Các điểm Data Service phải Implement
 
-| Việc cần làm | Mô tả |
-| --- | --- |
-| JWT verification | Verify signature, check aud, exp, iss |
-| VerificationKeyCache | In-memory cache public keys, sync định kỳ từ Trust |
-| mTLS client | Load cert từ Trust Service, dùng cho outbound calls |
-| Shard ID validation | Verify request đến đúng shard (chống mis-routing) |
-| Audit trail | Ghi lại mọi access (ai, làm gì, lúc nào) |
-| Service registration | Đăng ký với Trust Service là verifier của Identity Service |
+| Thành phần                   | Mô tả                          |
+| ---------------------------- | ------------------------------ |
+| JWT Verification             | Verify JWT từ Identity Service |
+| VerificationKeyCache         | Cache Public Key               |
+| Subject Cache                | Cache Subject Information      |
+| Permission Cache             | Cache System Permission        |
+| mTLS Client                  | Service Authentication         |
+| System Permission Evaluation | Quyền hệ thống                 |
+| Object Permission Evaluation | ACL                            |
+| Ownership Evaluation         | Owner Rule                     |
+| Visibility Evaluation        | Public/Internal/Private        |
+| Audit Trail                  | Ghi nhận mọi hành động         |
+| Shard Validation             | Xác thực đúng Shard            |
+| Permission Sync              | Đồng bộ quyền hệ thống         |
+| Subject Sync                 | Đồng bộ Subject Metadata       |

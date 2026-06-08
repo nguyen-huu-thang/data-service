@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 import pytest
 import pytest_asyncio
 
-from app.common.constants.Role import Role
+from app.domain.permission.role.Role import Role
 from app.common.util.IdGenerator import generate_id
-from app.domain.permission.ObjectPermission import ObjectPermission
+from app.domain.permission.model.ObjectPermission import ObjectPermission
 from app.infrastructure.persistence.repository.object.SqlAlchemyObjectRepository import (
     SqlAlchemyObjectRepository,
 )
@@ -28,6 +28,7 @@ def _make_permission(object_id: bytes, subject_id: bytes, role: Role) -> ObjectP
         permission_id=generate_id(),
         object_id=object_id,
         subject_identity_id=subject_id,
+        subject_type="HUMAN",
         role=role,
         created_at=_NOW,
     )

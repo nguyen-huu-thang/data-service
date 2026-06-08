@@ -10,17 +10,25 @@ from app.application.dto.object.DeleteObjectCommand import DeleteObjectCommand
 from app.application.dto.object.DownloadObjectQuery import DownloadObjectQuery
 from app.application.dto.object.DownloadObjectResult import DownloadObjectResult
 from app.application.dto.object.GetObjectQuery import GetObjectQuery
-from app.common.constants.ObjectType import ObjectType
-from app.common.constants.Visibility import Visibility
-from app.domain.object.DataObject import DataObject
+from app.domain.object.model.DataObject import DataObject
+from app.domain.object.valueobject.ObjectType import ObjectType
+from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
 
 
 class ObjectGrpcMapper:
-    def to_create_command(self, request, requester_identity_id: bytes) -> CreateObjectCommand:
+    def to_create_command(
+        self,
+        request,
+        requester_identity_id: bytes,
+        requester_subject_type: str = "HUMAN",
+        requester_name: str = "",
+    ) -> CreateObjectCommand:
         return CreateObjectCommand(
             requester_identity_id=requester_identity_id,
+            requester_subject_type=requester_subject_type,
+            requester_name=requester_name,
             object_type=ObjectType(request.object_type),
-            visibility=Visibility(request.visibility),
+            visibility=ObjectVisibility(request.visibility),
             filename=request.filename,
             content_type=request.content_type,
             data=request.data,
@@ -34,9 +42,17 @@ class ObjectGrpcMapper:
             storage_pointer=result.storage_pointer,
         )
 
-    def to_get_query(self, request, requester_identity_id: bytes) -> GetObjectQuery:
+    def to_get_query(
+        self,
+        request,
+        requester_identity_id: bytes,
+        requester_subject_type: str = "HUMAN",
+        requester_name: str = "",
+    ) -> GetObjectQuery:
         return GetObjectQuery(
             requester_identity_id=requester_identity_id,
+            requester_subject_type=requester_subject_type,
+            requester_name=requester_name,
             object_id=request.object_id,
         )
 
@@ -54,9 +70,17 @@ class ObjectGrpcMapper:
             updated_at_unix=int(obj.updated_at.timestamp()),
         )
 
-    def to_download_query(self, request, requester_identity_id: bytes) -> DownloadObjectQuery:
+    def to_download_query(
+        self,
+        request,
+        requester_identity_id: bytes,
+        requester_subject_type: str = "HUMAN",
+        requester_name: str = "",
+    ) -> DownloadObjectQuery:
         return DownloadObjectQuery(
             requester_identity_id=requester_identity_id,
+            requester_subject_type=requester_subject_type,
+            requester_name=requester_name,
             object_id=request.object_id,
         )
 
@@ -67,9 +91,17 @@ class ObjectGrpcMapper:
             content_size=result.content_size,
         )
 
-    def to_delete_command(self, request, requester_identity_id: bytes) -> DeleteObjectCommand:
+    def to_delete_command(
+        self,
+        request,
+        requester_identity_id: bytes,
+        requester_subject_type: str = "HUMAN",
+        requester_name: str = "",
+    ) -> DeleteObjectCommand:
         return DeleteObjectCommand(
             requester_identity_id=requester_identity_id,
+            requester_subject_type=requester_subject_type,
+            requester_name=requester_name,
             object_id=request.object_id,
         )
 

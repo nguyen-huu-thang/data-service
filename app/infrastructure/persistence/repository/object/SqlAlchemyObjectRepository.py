@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from xime.starters.sqlalchemy.session import AsyncSessionFactory
 
-from app.domain.object.DataObject import DataObject
+from app.domain.object.model.DataObject import DataObject
 from app.infrastructure.persistence.entity.DataObjectEntity import DataObjectEntity
 from app.infrastructure.persistence.mapper.DataObjectMapper import DataObjectMapper
 

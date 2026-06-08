@@ -4,10 +4,10 @@ from app.application.dto.object.GetObjectQuery import GetObjectQuery
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.service.audit.AuditService import AuditService
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.constants.Capability import Capability
-from app.common.constants.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.domain.object.DataObject import DataObject
+from app.domain.object.model.DataObject import DataObject
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.permission.capability.AclCapability import AclCapability
 
 
 class GetObjectUseCase:
@@ -33,9 +33,15 @@ class GetObjectUseCase:
             await self._auth.require_capability(
                 query.requester_identity_id,
                 obj,
-                Capability.READ,
+                AclCapability.READ,
             )
 
-            await self._audit.record(obj.object_id, query.requester_identity_id, "READ")
+            await self._audit.record(
+                obj.object_id,
+                query.requester_identity_id,
+                query.requester_subject_type,
+                query.requester_name,
+                "READ",
+            )
 
             return obj

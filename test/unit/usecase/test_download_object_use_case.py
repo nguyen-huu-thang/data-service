@@ -11,7 +11,7 @@ import pytest
 
 from app.application.dto.object.DownloadObjectQuery import DownloadObjectQuery
 from app.application.usecase.object.DownloadObjectUseCase import DownloadObjectUseCase
-from app.common.constants.ObjectStatus import ObjectStatus
+from domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import (
@@ -25,7 +25,12 @@ _BLOB_DATA = b"fake binary content"
 
 
 def _query(requester: bytes = OWNER_ID) -> DownloadObjectQuery:
-    return DownloadObjectQuery(requester_identity_id=requester, object_id=OBJECT_ID)
+    return DownloadObjectQuery(
+        requester_identity_id=requester,
+        requester_subject_type="HUMAN",
+        requester_name="test",
+        object_id=OBJECT_ID,
+    )
 
 
 def _make_uc(*, obj=None, version=None, auth_allow: bool = True):
@@ -94,7 +99,7 @@ async def test_records_audit_on_download():
         audit_service=audit,
     )
     await uc.execute(_query())
-    audit.record.assert_called_once_with(OBJECT_ID, OWNER_ID, "DOWNLOAD")
+    audit.record.assert_called_once_with(OBJECT_ID, OWNER_ID, "HUMAN", "test", "DOWNLOAD")
 
 
 # ── Not found / PURGED ────────────────────────────────────────────────────────

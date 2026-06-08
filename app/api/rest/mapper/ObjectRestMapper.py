@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 from app.application.dto.object.CreateObjectResult import CreateObjectResult
-from app.domain.object.DataObject import DataObject
+from app.domain.object.model.DataObject import DataObject
 
 
 class CreateObjectResponse(BaseModel):

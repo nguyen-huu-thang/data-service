@@ -77,6 +77,8 @@ class VersionRestController:
             data = await file.read()
             command = CreateVersionCommand(
                 requester_identity_id=claims.identity_id,
+                requester_subject_type=claims.subject_type,
+                requester_name=claims.name,
                 object_id=_parse_id(object_id, "object_id"),
                 filename=file.filename or "upload",
                 content_type=file.content_type or "application/octet-stream",
@@ -112,6 +114,8 @@ class VersionRestController:
             claims = await self._jwt.verify(_require_token(authorization))
             query = ListVersionsQuery(
                 requester_identity_id=claims.identity_id,
+                requester_subject_type=claims.subject_type,
+                requester_name=claims.name,
                 object_id=_parse_id(object_id, "object_id"),
             )
             versions = await self._list.execute(query)
@@ -143,6 +147,8 @@ class VersionRestController:
             claims = await self._jwt.verify(_require_token(authorization))
             query = GetVersionQuery(
                 requester_identity_id=claims.identity_id,
+                requester_subject_type=claims.subject_type,
+                requester_name=claims.name,
                 object_id=_parse_id(object_id, "object_id"),
                 version_id=_parse_id(version_id, "version_id"),
             )
@@ -174,6 +180,8 @@ class VersionRestController:
             claims = await self._jwt.verify(_require_token(authorization))
             query = DownloadVersionQuery(
                 requester_identity_id=claims.identity_id,
+                requester_subject_type=claims.subject_type,
+                requester_name=claims.name,
                 object_id=_parse_id(object_id, "object_id"),
                 version_id=_parse_id(version_id, "version_id"),
             )

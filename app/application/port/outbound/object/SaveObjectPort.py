@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from app.domain.object.DataObject import DataObject
+from app.domain.object.model.DataObject import DataObject
 
 
 class SaveObjectPort(Protocol):

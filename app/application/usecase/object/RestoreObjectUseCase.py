@@ -6,10 +6,10 @@ from app.application.dto.object.RestoreObjectCommand import RestoreObjectCommand
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.application.service.audit.AuditService import AuditService
-from app.common.constants.ObjectStatus import ObjectStatus
 from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 
 
 class RestoreObjectUseCase:
@@ -44,4 +44,10 @@ class RestoreObjectUseCase:
             restored = obj.restore(now)
             await self._save.update(restored)
 
-            await self._audit.record(obj.object_id, command.requester_identity_id, "RESTORE")
+            await self._audit.record(
+                obj.object_id,
+                command.requester_identity_id,
+                command.requester_subject_type,
+                command.requester_name,
+                "RESTORE",
+            )

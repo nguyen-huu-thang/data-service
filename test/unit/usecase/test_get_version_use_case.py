@@ -12,7 +12,7 @@ import pytest
 
 from app.application.dto.version.GetVersionQuery import GetVersionQuery
 from app.application.usecase.version.GetVersionUseCase import GetVersionUseCase
-from app.common.constants.ObjectStatus import ObjectStatus
+from domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, VERSION_ID, make_object, make_version, mock_auth
@@ -23,6 +23,8 @@ pytestmark = pytest.mark.asyncio
 def _query(requester: bytes = OWNER_ID) -> GetVersionQuery:
     return GetVersionQuery(
         requester_identity_id=requester,
+        requester_subject_type="HUMAN",
+        requester_name="test",
         object_id=OBJECT_ID,
         version_id=VERSION_ID,
     )

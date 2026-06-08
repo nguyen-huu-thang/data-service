@@ -12,7 +12,7 @@ import pytest
 
 from app.application.dto.version.CreateVersionCommand import CreateVersionCommand
 from app.application.usecase.version.CreateVersionUseCase import CreateVersionUseCase
-from app.common.constants.ObjectStatus import ObjectStatus
+from domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
@@ -26,6 +26,8 @@ _DATA = b"new version content"
 def _cmd(requester: bytes = OWNER_ID) -> CreateVersionCommand:
     return CreateVersionCommand(
         requester_identity_id=requester,
+        requester_subject_type="HUMAN",
+        requester_name="test",
         object_id=OBJECT_ID,
         filename="file_v2.jpg",
         content_type="image/jpeg",

@@ -13,10 +13,10 @@ import pytest_asyncio
 from app.application.dto.object.CreateObjectCommand import CreateObjectCommand
 from app.application.service.audit.AuditService import AuditService
 from app.application.usecase.object.CreateObjectUseCase import CreateObjectUseCase
-from app.common.constants.ObjectStatus import ObjectStatus
-from app.common.constants.ObjectType import ObjectType
-from app.common.constants.Role import Role
-from app.common.constants.Visibility import Visibility
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.object.valueobject.ObjectType import ObjectType
+from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
+from app.domain.permission.role.Role import Role
 from app.common.util.IdGenerator import generate_id
 from app.infrastructure.persistence.repository.audit.SqlAlchemyAuditRepository import (
     SqlAlchemyAuditRepository,
@@ -83,8 +83,10 @@ async def test_create_object_persists_data_object(use_case_and_repos, db_session
 
     result = await uc.execute(CreateObjectCommand(
         requester_identity_id=requester,
-        object_type=ObjectType.IMAGE,
-        visibility=Visibility.PRIVATE,
+        requester_subject_type="HUMAN",
+        requester_name="test",
+        object_type=ObjectType("IMAGE"),
+        visibility=ObjectVisibility.PRIVATE,
         filename="photo.jpg",
         content_type="image/jpeg",
         data=_IMAGE_DATA,
@@ -105,8 +107,10 @@ async def test_create_object_creates_version_1(use_case_and_repos, db_session):
 
     result = await uc.execute(CreateObjectCommand(
         requester_identity_id=requester,
-        object_type=ObjectType.IMAGE,
-        visibility=Visibility.PRIVATE,
+        requester_subject_type="HUMAN",
+        requester_name="test",
+        object_type=ObjectType("IMAGE"),
+        visibility=ObjectVisibility.PRIVATE,
         filename="photo.jpg",
         content_type="image/jpeg",
         data=_IMAGE_DATA,
@@ -118,8 +122,8 @@ async def test_create_object_creates_version_1(use_case_and_repos, db_session):
     assert len(versions) == 1
     v = versions[0]
     assert v.version_number == 1
-    assert v.mime_type == "image/jpeg"
-    assert len(v.content_hash) == 64  # SHA-256 hex
+    assert v.mime_type.value == "image/jpeg"
+    assert len(v.content_hash.value) == 64  # SHA-256 hex
 
 
 async def test_create_object_grants_owner_permission(use_case_and_repos, db_session):
@@ -128,8 +132,10 @@ async def test_create_object_grants_owner_permission(use_case_and_repos, db_sess
 
     result = await uc.execute(CreateObjectCommand(
         requester_identity_id=requester,
-        object_type=ObjectType.IMAGE,
-        visibility=Visibility.PRIVATE,
+        requester_subject_type="HUMAN",
+        requester_name="test",
+        object_type=ObjectType("IMAGE"),
+        visibility=ObjectVisibility.PRIVATE,
         filename="photo.jpg",
         content_type="image/jpeg",
         data=_IMAGE_DATA,
@@ -148,8 +154,10 @@ async def test_create_object_uploads_blob(use_case_and_repos):
 
     await uc.execute(CreateObjectCommand(
         requester_identity_id=requester,
-        object_type=ObjectType.DOCUMENT,
-        visibility=Visibility.INTERNAL,
+        requester_subject_type="HUMAN",
+        requester_name="test",
+        object_type=ObjectType("DOCUMENT"),
+        visibility=ObjectVisibility.INTERNAL,
         filename="report.pdf",
         content_type="application/pdf",
         data=b"%PDF-1.4 fake",
@@ -168,8 +176,10 @@ async def test_create_object_current_version_id_set(use_case_and_repos, db_sessi
 
     result = await uc.execute(CreateObjectCommand(
         requester_identity_id=requester,
-        object_type=ObjectType.IMAGE,
-        visibility=Visibility.PRIVATE,
+        requester_subject_type="HUMAN",
+        requester_name="test",
+        object_type=ObjectType("IMAGE"),
+        visibility=ObjectVisibility.PRIVATE,
         filename="img.png",
         content_type="image/png",
         data=_IMAGE_DATA,

@@ -4,7 +4,7 @@ Integration tests — SqlAlchemyObjectRepository against real SQLite DB.
 import pytest
 import pytest_asyncio
 
-from app.common.constants.ObjectStatus import ObjectStatus
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.util.IdGenerator import generate_id
 from app.infrastructure.persistence.repository.object.SqlAlchemyObjectRepository import (
     SqlAlchemyObjectRepository,

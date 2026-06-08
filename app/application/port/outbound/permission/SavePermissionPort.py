@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from app.domain.permission.ObjectPermission import ObjectPermission
+from app.domain.permission.model.ObjectPermission import ObjectPermission
 
 
 class SavePermissionPort(Protocol):

@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 from app.application.dto.version.CreateVersionResult import CreateVersionResult
-from app.domain.object.ObjectVersion import ObjectVersion
+from app.domain.object.model.ObjectVersion import ObjectVersion
 
 
 class CreateVersionResponse(BaseModel):
@@ -38,10 +38,10 @@ class VersionRestMapper:
             version_id=version.version_id.hex(),
             object_id=version.object_id.hex(),
             version_number=version.version_number,
-            content_hash=version.content_hash,
+            content_hash=version.content_hash.value,
             content_size=version.content_size,
-            mime_type=version.mime_type,
-            created_by=version.created_by.hex(),
+            mime_type=version.mime_type.value,
+            created_by=version.created_by_identity_id.hex(),
             created_at=version.created_at.isoformat(),
         )
 

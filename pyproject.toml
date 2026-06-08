@@ -42,3 +42,4 @@ ignore = ["E501"]
 asyncio_mode = "strict"
 testpaths = ["test"]
 addopts = "--import-mode=importlib"
+pythonpath = [".", "app"]
