@@ -9,10 +9,10 @@ import pytest
 
 from app.application.service.authorization.AuthorizationService import AuthorizationService
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
-from domain.object.valueobject.ObjectVisibility import ObjectVisibility
-from domain.permission.capability.AclCapability import AclCapability
-from domain.permission.model.ObjectPermission import ObjectPermission
-from domain.permission.role.Role import Role
+from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
+from app.domain.permission.capability.AclCapability import AclCapability
+from app.domain.permission.model.ObjectPermission import ObjectPermission
+from app.domain.permission.role.Role import Role
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, PERM_ID, make_object
 
 pytestmark = pytest.mark.asyncio

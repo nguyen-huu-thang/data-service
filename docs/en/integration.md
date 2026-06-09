@@ -62,10 +62,20 @@ Refresh certificate before expiry
 
 ```
 app/integration/trust/
+├── bootstrap/                              ← reads bootstrap payload at startup
+├── certificate/
+│   ├── GrpcTrustCertificateClient.py       ← gRPC client to fetch certificates from Trust Service
+│   ├── TrustCertificateResolver.py         ← resolves the current active certificate
+│   └── TrustCertificateSynchronizer.py     ← syncs and persists new certificates
 ├── key/
-│   └── JwtPublicKeyClient.py      ← fetches & caches public keys
-└── certificate/
-    └── TrustCertificateClient.py  ← manages mTLS certificate lifecycle
+│   ├── TrustKeyClient.py                   ← fetches JWT public keys from Trust Service
+│   ├── VerificationKeyCache.py             ← in-memory public key cache
+│   ├── TrustKeyCleanup.py                  ← cleans up expired keys
+│   └── VerificationKeySynchronizer.py      ← periodic key synchronization
+├── publicca/                               ← Root CA certificate management
+├── scheduler/                              ← scheduled jobs: cert rotation, key refresh, cleanup
+├── ssl/                                    ← SSL context setup for gRPC server
+└── startup/                                ← startup orchestration for Trust integration
 ```
 
 ---

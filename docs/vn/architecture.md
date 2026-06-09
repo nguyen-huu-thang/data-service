@@ -49,11 +49,9 @@ app/
 │
 ├── application/
 │   ├── dto/                             ← Command và Query (excluded khỏi DI)
-│   │   ├── object/
-│   │   │   ├── CreateObjectCommand.py
-│   │   │   ├── GetObjectQuery.py
-│   │   │   └── UpdateObjectCommand.py
+│   │   ├── object/                      ← CreateObjectCommand, GetObjectQuery, ArchiveObjectCommand, ...
 │   │   ├── permission/
+│   │   ├── subject/
 │   │   └── version/
 │   │
 │   ├── port/
@@ -62,22 +60,23 @@ app/
 │   │       ├── object/
 │   │       │   ├── LoadObjectPort.py
 │   │       │   └── SaveObjectPort.py
+│   │       ├── audit/
+│   │       │   └── SaveAuditPort.py
 │   │       ├── permission/
-│   │       ├── version/
-│   │       └── storage/
-│   │           └── BlobStoragePort.py
+│   │       ├── storage/
+│   │       │   └── BlobStoragePort.py
+│   │       ├── trust/                   ← port cho Trust certificate và key (Phase 14)
+│   │       │   ├── LoadCertificatePort.py
+│   │       │   ├── SaveCertificatePort.py
+│   │       │   ├── LoadVerificationKeyPort.py
+│   │       │   └── SaveVerificationKeyPort.py
+│   │       └── version/
 │   │
 │   ├── usecase/                         ← use case implementation (scanned bởi DI)
-│   │   ├── object/
-│   │   │   ├── CreateObjectUseCase.py
-│   │   │   ├── GetObjectUseCase.py
-│   │   │   ├── DeleteObjectUseCase.py
-│   │   │   └── ArchiveObjectUseCase.py
+│   │   ├── object/                      ← Create, Get, List, Delete, Archive, Restore, ...
 │   │   ├── permission/
-│   │   │   ├── GrantPermissionUseCase.py
-│   │   │   └── RevokePermissionUseCase.py
+│   │   ├── subject/
 │   │   └── version/
-│   │       └── CreateVersionUseCase.py
 │   │
 │   └── service/                         ← application service (scanned bởi DI)
 │       ├── authorization/               ← evaluate capability từ ACL
@@ -87,38 +86,52 @@ app/
 │
 ├── domain/                              ← domain model thuần túy (excluded khỏi DI)
 │   ├── object/
-│   │   ├── DataObject.py
-│   │   ├── ObjectVersion.py
-│   │   └── ObjectStatus.py
+│   │   ├── model/                       ← DataObject, ObjectVersion, ObjectShare, ...
+│   │   └── valueobject/                 ← ObjectStatus, ObjectType, Visibility, ...
 │   ├── permission/
-│   │   ├── ObjectPermission.py
-│   │   ├── ObjectCapability.py
-│   │   └── Role.py
-│   └── shard/
-│       └── ShardInfo.py
+│   │   ├── model/                       ← ObjectPermission, SubjectPermission
+│   │   ├── capability/                  ← ObjectCapability, AclCapability
+│   │   └── role/                        ← Role
+│   ├── audit/                           ← ObjectAudit, AuditAction
+│   ├── key/                             ← KeyContext (JWT key domain model)
+│   ├── shard/                           ← ShardInfo
+│   ├── subject/                         ← SubjectInfo, SubjectType
+│   ├── sharedkernel/                    ← Id, IdFactory, IdService
+│   └── trust/                           ← Certificate, RootCertificate, VerificationKeyRecord
 │
 ├── infrastructure/                      ← implementation (scanned bởi DI)
 │   ├── persistence/
 │   │   ├── entity/                      ← SQLAlchemy ORM entity
 │   │   ├── mapper/                      ← mapper entity ↔ domain model
 │   │   └── repository/                  ← implement outbound port
+│   │       ├── audit/
 │   │       ├── object/
 │   │       ├── permission/
+│   │       ├── trust/                   ← TrustCertificateRepository, TrustVerificationKeyRepository
 │   │       └── version/
 │   ├── storage/
 │   │   └── local/
 │   │       └── LocalDiskStorageAdapter.py  ← implement BlobStoragePort
+│   ├── scheduler/                       ← scheduler infrastructure
 │   └── event/
 │       └── publisher/
 │
 ├── integration/                         ← client service bên ngoài
 │   ├── identity/                        ← xác minh JWT, giải quyết identity
-│   └── trust/                           ← đồng bộ JWT public key, mTLS
+│   └── trust/                           ← Trust Service integration (Phase 14)
+│       ├── bootstrap/                   ← đọc bootstrap payload lúc khởi động
+│       ├── certificate/                 ← đồng bộ certificate mTLS
+│       ├── key/                         ← lấy và cache JWT public key
+│       ├── publicca/                    ← quản lý Root CA certificate
+│       ├── scheduler/                   ← job định kỳ (cert rotation, key refresh)
+│       ├── ssl/                         ← SSL context cho gRPC server
+│       └── startup/                     ← orchestration khởi động Trust integration
 │
 └── config/
     ├── dependency.py                    ← XIME DI: scan package + bind interface
-    ├── routing.py
-    └── security.py
+    ├── scheduler.py                     ← cấu hình scheduler
+    ├── grpc.py
+    └── web.py
 ```
 
 ---

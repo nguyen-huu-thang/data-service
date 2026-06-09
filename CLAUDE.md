@@ -10,8 +10,6 @@ Data Service là **distributed data infrastructure** của toàn platform: quả
 
 Data Service **không** chứa business domain — không biết "đây là ảnh đại diện" hay "đây là ảnh sản phẩm". Đó là trách nhiệm của application service.
 
-**Trạng thái hiện tại:** Giai đoạn thiết kế — chỉ có tài liệu, chưa có code Python.
-
 ---
 
 ## Framework & Ngôn ngữ
@@ -53,6 +51,7 @@ python app/main.py
 | [`.claude/docs/lua-chon-python.md`](.claude/docs/lua-chon-python.md) | Lý do chọn Python + Xime Framework — I/O bound, developer productivity, so sánh Go/Java |
 | [`.claude/docs/ra-soat-application-layer.md`](.claude/docs/ra-soat-application-layer.md) | Rà soát application layer — use case còn thiếu, service có thể phát sinh |
 | [`.claude/docs/ke-hoach-sua-code.md`](.claude/docs/ke-hoach-sua-code.md) | **Kế hoạch sửa code** — 8 phase đồng bộ code với thiết kế mới, checklist đầy đủ |
+| [`.claude/docs/ke-hoach-phase-14.md`](.claude/docs/ke-hoach-phase-14.md) | **Phase 14 — Trust Integration** — mTLS, bootstrap cert, cert rotation, key persistence, schedulers |
 
 ### Rules — Quy tắc kiến trúc & Code
 

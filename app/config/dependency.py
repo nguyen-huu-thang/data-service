@@ -16,6 +16,12 @@ from app.application.port.outbound.permission.LoadSubjectPermissionPort import L
 from app.application.port.outbound.audit.SaveAuditPort import SaveAuditPort
 from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 
+# Trust ports
+from app.application.port.outbound.trust.LoadCertificatePort import LoadCertificatePort
+from app.application.port.outbound.trust.SaveCertificatePort import SaveCertificatePort
+from app.application.port.outbound.trust.LoadVerificationKeyPort import LoadVerificationKeyPort
+from app.application.port.outbound.trust.SaveVerificationKeyPort import SaveVerificationKeyPort
+
 # Legacy flat-style ports (still bound for backward compatibility)
 from app.application.port.outbound.ObjectRepository import ObjectRepository
 from app.application.port.outbound.ObjectVersionRepository import ObjectVersionRepository
@@ -28,6 +34,13 @@ from app.application.port.outbound.SubjectInfoRepository import SubjectInfoRepos
 from app.application.port.outbound.ObjectAuditRepository import ObjectAuditRepository
 
 from app.infrastructure.storage.local.LocalDiskStorageAdapter import LocalDiskStorageAdapter
+
+# Trust repositories
+from app.infrastructure.persistence.repository.trust.TrustCertificateRepository import TrustCertificateRepository
+from app.infrastructure.persistence.repository.trust.TrustVerificationKeyRepository import TrustVerificationKeyRepository
+
+# Manually registered trust classes (not in scanned packages)
+from app.integration.trust.bootstrap.Bootstrap import Bootstrap
 
 # Structured repositories
 from app.infrastructure.persistence.repository.object.SqlAlchemyObjectRepository import (
@@ -73,6 +86,9 @@ dependency = BindingConfig()
 dependency.register(
     ObjectGrpcMapper,
     VersionGrpcMapper,
+    # Bootstrap creates BootstrapLoader/BootstrapValidator internally,
+    # so they're not DI-managed — only Bootstrap itself is registered here.
+    Bootstrap,
 )
 
 # ── Package scan ──────────────────────────────────────────────────────────────
@@ -99,8 +115,15 @@ dependency.scan(
     "app.infrastructure.persistence.repository",
     # Infrastructure — blob storage
     "app.infrastructure.storage",
-    # Integration — Trust Service key sync
+    # Infrastructure — Trust repositories
+    "app.infrastructure.persistence.repository.trust",
+    # Integration — Trust Service (all sub-packages)
+    "app.integration.trust.publicca",
+    "app.integration.trust.certificate",
+    "app.integration.trust.ssl",
     "app.integration.trust.key",
+    "app.integration.trust.startup",
+    "app.integration.trust.scheduler",
     # API — gRPC mappers
     "app.api.grpc.mapper",
     # API — gRPC handlers (external + internal)
@@ -135,6 +158,12 @@ dependency.bind({
 
     # Blob storage
     BlobStoragePort: LocalDiskStorageAdapter,
+
+    # Trust ports → Trust repositories
+    LoadCertificatePort: TrustCertificateRepository,
+    SaveCertificatePort: TrustCertificateRepository,
+    LoadVerificationKeyPort: TrustVerificationKeyRepository,
+    SaveVerificationKeyPort: TrustVerificationKeyRepository,
 
     # Legacy flat ports → legacy repositories
     ObjectRepository: SqlAlchemyObjectRepository,

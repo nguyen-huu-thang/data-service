@@ -11,7 +11,7 @@ import pytest
 
 from app.application.dto.object.RestoreObjectCommand import RestoreObjectCommand
 from app.application.usecase.object.RestoreObjectUseCase import RestoreObjectUseCase
-from domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException

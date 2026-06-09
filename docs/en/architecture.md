@@ -49,11 +49,9 @@ app/
 │
 ├── application/
 │   ├── dto/                             ← Commands and Queries (excluded from DI)
-│   │   ├── object/
-│   │   │   ├── CreateObjectCommand.py
-│   │   │   ├── GetObjectQuery.py
-│   │   │   └── UpdateObjectCommand.py
+│   │   ├── object/                      ← CreateObjectCommand, GetObjectQuery, ArchiveObjectCommand, ...
 │   │   ├── permission/
+│   │   ├── subject/
 │   │   └── version/
 │   │
 │   ├── port/
@@ -62,22 +60,23 @@ app/
 │   │       ├── object/
 │   │       │   ├── LoadObjectPort.py
 │   │       │   └── SaveObjectPort.py
+│   │       ├── audit/
+│   │       │   └── SaveAuditPort.py
 │   │       ├── permission/
-│   │       ├── version/
-│   │       └── storage/
-│   │           └── BlobStoragePort.py
+│   │       ├── storage/
+│   │       │   └── BlobStoragePort.py
+│   │       ├── trust/                   ← trust certificate and key ports (Phase 14)
+│   │       │   ├── LoadCertificatePort.py
+│   │       │   ├── SaveCertificatePort.py
+│   │       │   ├── LoadVerificationKeyPort.py
+│   │       │   └── SaveVerificationKeyPort.py
+│   │       └── version/
 │   │
 │   ├── usecase/                         ← use case implementations (scanned by DI)
-│   │   ├── object/
-│   │   │   ├── CreateObjectUseCase.py
-│   │   │   ├── GetObjectUseCase.py
-│   │   │   ├── DeleteObjectUseCase.py
-│   │   │   └── ArchiveObjectUseCase.py
+│   │   ├── object/                      ← Create, Get, List, Delete, Archive, Restore, ...
 │   │   ├── permission/
-│   │   │   ├── GrantPermissionUseCase.py
-│   │   │   └── RevokePermissionUseCase.py
+│   │   ├── subject/
 │   │   └── version/
-│   │       └── CreateVersionUseCase.py
 │   │
 │   └── service/                         ← application services (scanned by DI)
 │       ├── authorization/               ← capability evaluation from ACL
@@ -87,38 +86,52 @@ app/
 │
 ├── domain/                              ← pure domain model (excluded from DI)
 │   ├── object/
-│   │   ├── DataObject.py
-│   │   ├── ObjectVersion.py
-│   │   └── ObjectStatus.py
+│   │   ├── model/                       ← DataObject, ObjectVersion, ObjectShare, ...
+│   │   └── valueobject/                 ← ObjectStatus, ObjectType, Visibility, ...
 │   ├── permission/
-│   │   ├── ObjectPermission.py
-│   │   ├── ObjectCapability.py
-│   │   └── Role.py
-│   └── shard/
-│       └── ShardInfo.py
+│   │   ├── model/                       ← ObjectPermission, SubjectPermission
+│   │   ├── capability/                  ← ObjectCapability, AclCapability
+│   │   └── role/                        ← Role
+│   ├── audit/                           ← ObjectAudit, AuditAction
+│   ├── key/                             ← KeyContext (JWT key domain model)
+│   ├── shard/                           ← ShardInfo
+│   ├── subject/                         ← SubjectInfo, SubjectType
+│   ├── sharedkernel/                    ← Id, IdFactory, IdService
+│   └── trust/                           ← Certificate, RootCertificate, VerificationKeyRecord
 │
 ├── infrastructure/                      ← implementations (scanned by DI)
 │   ├── persistence/
 │   │   ├── entity/                      ← SQLAlchemy ORM entities
 │   │   ├── mapper/                      ← entity ↔ domain model mappers
 │   │   └── repository/                  ← implements outbound ports
+│   │       ├── audit/
 │   │       ├── object/
 │   │       ├── permission/
+│   │       ├── trust/                   ← TrustCertificateRepository, TrustVerificationKeyRepository
 │   │       └── version/
 │   ├── storage/
 │   │   └── local/
 │   │       └── LocalDiskStorageAdapter.py  ← implements BlobStoragePort
+│   ├── scheduler/                       ← scheduler infrastructure
 │   └── event/
 │       └── publisher/
 │
 ├── integration/                         ← external service clients
 │   ├── identity/                        ← JWT verification, identity resolution
-│   └── trust/                           ← JWT public key sync, mTLS setup
+│   └── trust/                           ← Trust Service integration (Phase 14)
+│       ├── bootstrap/                   ← reads bootstrap payload at startup
+│       ├── certificate/                 ← mTLS certificate synchronization
+│       ├── key/                         ← JWT public key fetch and cache
+│       ├── publicca/                    ← Root CA certificate management
+│       ├── scheduler/                   ← scheduled jobs (cert rotation, key refresh)
+│       ├── ssl/                         ← SSL context for gRPC server
+│       └── startup/                     ← Trust integration startup orchestration
 │
 └── config/
     ├── dependency.py                    ← XIME DI: scan packages + bind interfaces
-    ├── routing.py
-    └── security.py
+    ├── scheduler.py                     ← scheduler configuration
+    ├── grpc.py
+    └── web.py
 ```
 
 ---

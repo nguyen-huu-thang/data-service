@@ -5,9 +5,9 @@ from datetime import datetime, timezone
 
 import pytest
 
-from domain.permission.capability.AclCapability import AclCapability
-from domain.permission.model.ObjectPermission import ObjectPermission
-from domain.permission.role.Role import Role
+from app.domain.permission.capability.AclCapability import AclCapability
+from app.domain.permission.model.ObjectPermission import ObjectPermission
+from app.domain.permission.role.Role import Role
 
 _NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 _PERM_ID = b'\xCC' * 24

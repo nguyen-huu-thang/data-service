@@ -12,7 +12,7 @@ import pytest
 
 from app.application.dto.version.DownloadVersionQuery import DownloadVersionQuery
 from app.application.usecase.version.DownloadVersionUseCase import DownloadVersionUseCase
-from domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, VERSION_ID, make_object, make_version, mock_audit, mock_auth

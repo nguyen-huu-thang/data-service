@@ -12,7 +12,7 @@ import pytest
 
 from app.application.dto.version.CreateVersionCommand import CreateVersionCommand
 from app.application.usecase.version.CreateVersionUseCase import CreateVersionUseCase
-from domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException

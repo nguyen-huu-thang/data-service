@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package trust.external.key;
+
+option java_package = "vn.xime.trust.grpc.external.key";
+option java_multiple_files = true;
+
+
+// ==================================================
+//  (JWT RUNTIME)
+// ==================================================
+//
+// ⚠️ EXTERNAL API
+// - Dùng cho runtime service-to-service
+// - KHÔNG phải admin API
+//
+// USE CASE:
+// 1. Identity → SIGN JWT
+// 2. Services → VERIFY JWT
+//
+// SECURITY:
+// - Private key chỉ trả cho Identity Service
+// - Các service khác chỉ nhận public key
+//
+service KeyDistributionService {
+
+  // ==================================================
+  // VERIFY USE CASE
+  // ==================================================
+  //
+  // Lấy tất cả key còn hiệu lực để VERIFY JWT
+  //
+  // 👉 client sẽ:
+  // - cache key
+  // - verify theo kid
+  //
+  rpc GetPublicKeys (GetPublicKeysRequest)
+    returns (GetPublicKeysResponse);
+
+
+  // ==================================================
+  // SIGN USE CASE (IDENTITY ONLY)
+  // ==================================================
+  //
+  // Lấy key dùng để SIGN JWT
+  //
+  // 👉 server sẽ:
+  // - chọn key có activate_at <= now
+  // - gần nhất
+  //
+  rpc GetSigningKey (GetSigningKeyRequest)
+    returns (GetSigningKeyResponse);
+}
+
+
+message GetPublicKeysRequest {
+  string verifier_service_id = 1;
+}
+
+message GetPublicKeysResponse {
+
+  // tất cả key chưa hết hạn
+  repeated PublicKeyDto keys = 1;
+}
+
+message GetSigningKeyRequest {
+  string signer_service_id = 1;
+}
+
+message GetSigningKeyResponse {
+  repeated SigningKeyDto keys = 1;
+}
+
+
+message PublicKeyDto {
+
+  string id = 1; // KSUID (kid)
+  string verifier_service_id = 2;
+  string algorithm = 3;
+  int32 key_size = 4;
+  string public_key = 5;
+  int64 activate_at = 6;
+  int64 expires_at = 7;
+}
+
+message SigningKeyDto {
+  string id = 1;
+  string signer_service_id = 2;
+  string verifier_service_id = 3;
+  string algorithm = 4;
+  int32 key_size = 5;
+  string private_key = 6;
+  int64 activate_at = 7;
+  int64 expires_at = 8;
+}

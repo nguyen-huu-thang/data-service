@@ -1,0 +1,11 @@
+# Python cache và compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Test cache
+.pytest_cache/
+
+# Runtime files
+runtime/

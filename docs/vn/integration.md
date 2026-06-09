@@ -62,10 +62,20 @@ Làm mới certificate trước khi hết hạn
 
 ```
 app/integration/trust/
+├── bootstrap/                              ← đọc bootstrap payload lúc khởi động
+├── certificate/
+│   ├── GrpcTrustCertificateClient.py       ← gRPC client lấy certificate từ Trust Service
+│   ├── TrustCertificateResolver.py         ← resolve certificate hiện tại
+│   └── TrustCertificateSynchronizer.py     ← đồng bộ và lưu certificate mới
 ├── key/
-│   └── JwtPublicKeyClient.py      ← lấy & cache public key
-└── certificate/
-    └── TrustCertificateClient.py  ← quản lý vòng đời certificate mTLS
+│   ├── TrustKeyClient.py                   ← lấy JWT public key từ Trust Service
+│   ├── VerificationKeyCache.py             ← cache public key trong memory
+│   ├── TrustKeyCleanup.py                  ← dọn dẹp key hết hạn
+│   └── VerificationKeySynchronizer.py      ← đồng bộ key định kỳ
+├── publicca/                               ← quản lý Root CA certificate
+├── scheduler/                              ← job định kỳ: cert rotation, key refresh, cleanup
+├── ssl/                                    ← thiết lập SSL context cho gRPC server
+└── startup/                                ← orchestration khởi động toàn bộ Trust integration
 ```
 
 ---

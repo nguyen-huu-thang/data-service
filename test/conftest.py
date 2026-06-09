@@ -5,14 +5,13 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
-# Domain imports — use bare paths (app/ is in pythonpath via pyproject.toml)
-from domain.object.model.DataObject import DataObject
-from domain.object.model.ObjectVersion import ObjectVersion
-from domain.object.valueobject.ContentHash import ContentHash
-from domain.object.valueobject.MimeType import MimeType
-from domain.object.valueobject.ObjectStatus import ObjectStatus
-from domain.object.valueobject.ObjectType import ObjectType
-from domain.object.valueobject.ObjectVisibility import ObjectVisibility
+from app.domain.object.model.DataObject import DataObject
+from app.domain.object.model.ObjectVersion import ObjectVersion
+from app.domain.object.valueobject.ContentHash import ContentHash
+from app.domain.object.valueobject.MimeType import MimeType
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.object.valueobject.ObjectType import ObjectType
+from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
 
 _T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 

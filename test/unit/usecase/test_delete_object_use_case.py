@@ -11,7 +11,7 @@ import pytest
 
 from app.application.dto.object.DeleteObjectCommand import DeleteObjectCommand
 from app.application.usecase.object.DeleteObjectUseCase import DeleteObjectUseCase
-from domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectAlreadyDeletedException import ObjectAlreadyDeletedException
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException

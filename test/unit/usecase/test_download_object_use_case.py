@@ -11,7 +11,7 @@ import pytest
 
 from app.application.dto.object.DownloadObjectQuery import DownloadObjectQuery
 from app.application.usecase.object.DownloadObjectUseCase import DownloadObjectUseCase
-from domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import (

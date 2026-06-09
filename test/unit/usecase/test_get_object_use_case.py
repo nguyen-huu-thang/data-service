@@ -11,7 +11,7 @@ import pytest
 
 from app.application.dto.object.GetObjectQuery import GetObjectQuery
 from app.application.usecase.object.GetObjectUseCase import GetObjectUseCase
-from domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, make_object, mock_audit, mock_auth, mock_tx

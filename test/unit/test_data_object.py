@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from domain.object.valueobject.ObjectStatus import ObjectStatus
-from domain.object.valueobject.ObjectVisibility import ObjectVisibility
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
 from test.conftest import _T0, make_object
 
 _T1 = datetime(2026, 6, 3, tzinfo=timezone.utc)  # later than _T0

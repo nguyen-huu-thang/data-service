@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.application.service.authorization.JwtVerificationService import JwtVerificationService
 from app.common.exception.InvalidTokenException import InvalidTokenException
-from app.domain.key.KeyContext import KeyContext
+from app.domain.trust.VerificationKeyRecord import VerificationKeyRecord
 from app.integration.trust.key.VerificationKeyCache import VerificationKeyCache
 
 pytestmark = pytest.mark.asyncio
@@ -70,24 +70,26 @@ def _make_token(
     )
 
 
-def _make_key_ctx(private_key, kid: str = _KID) -> KeyContext:
+def _make_key_record(private_key, kid: str = _KID) -> VerificationKeyRecord:
     now = datetime.now(timezone.utc)
-    return KeyContext(
+    return VerificationKeyRecord(
         key_id=kid,
+        verifier_service_id=_SERVICE_ID,
         public_key=_public_pem(private_key),
         algorithm="RS256",
+        key_size=2048,
         activate_at=now - timedelta(hours=1),
         expires_at=now + timedelta(hours=24),
     )
 
 
 def _build_service(
-    key_ctx: KeyContext | None,
-    trust_returns: list[KeyContext] | None = None,
+    key_record: VerificationKeyRecord | None,
+    trust_returns: list[VerificationKeyRecord] | None = None,
 ) -> JwtVerificationService:
     cache = VerificationKeyCache()
-    if key_ctx is not None:
-        cache.update([key_ctx])
+    if key_record is not None:
+        cache.update([key_record])
 
     trust = MagicMock()
     trust.fetch_verification_keys = AsyncMock(return_value=trust_returns or [])
@@ -102,7 +104,7 @@ def _build_service(
 
 async def test_valid_token_returns_correct_claims():
     priv = _rsa_key()
-    ctx  = _make_key_ctx(priv)
+    ctx  = _make_key_record(priv)
     svc  = _build_service(ctx)
 
     claims = await svc.verify(_make_token(priv))
@@ -113,7 +115,7 @@ async def test_valid_token_returns_correct_claims():
 
 async def test_expired_token_raises_invalid_token():
     priv = _rsa_key()
-    svc  = _build_service(_make_key_ctx(priv))
+    svc  = _build_service(_make_key_record(priv))
 
     with pytest.raises(InvalidTokenException, match="expired"):
         await svc.verify(_make_token(priv, exp_delta=-timedelta(hours=1)))
@@ -121,7 +123,7 @@ async def test_expired_token_raises_invalid_token():
 
 async def test_wrong_audience_raises_invalid_token():
     priv = _rsa_key()
-    svc  = _build_service(_make_key_ctx(priv))
+    svc  = _build_service(_make_key_record(priv))
 
     with pytest.raises(InvalidTokenException, match="audience"):
         await svc.verify(_make_token(priv, aud="wrong-service"))
@@ -129,7 +131,7 @@ async def test_wrong_audience_raises_invalid_token():
 
 async def test_wrong_issuer_raises_invalid_token():
     priv = _rsa_key()
-    svc  = _build_service(_make_key_ctx(priv))
+    svc  = _build_service(_make_key_record(priv))
 
     with pytest.raises(InvalidTokenException, match="issuer"):
         await svc.verify(_make_token(priv, iss="wrong-issuer"))
@@ -149,7 +151,7 @@ async def test_unknown_kid_syncs_trust_then_raises():
 
 async def test_cache_miss_syncs_trust_and_verifies():
     priv = _rsa_key()
-    ctx  = _make_key_ctx(priv)
+    ctx  = _make_key_record(priv)
     # Start with empty cache; Trust returns the key
     svc  = _build_service(None, trust_returns=[ctx])
 
@@ -161,17 +163,17 @@ async def test_cache_miss_syncs_trust_and_verifies():
 
 async def test_malformed_token_raises_invalid_token():
     priv = _rsa_key()
-    svc  = _build_service(_make_key_ctx(priv))
+    svc  = _build_service(_make_key_record(priv))
 
     with pytest.raises(InvalidTokenException, match="Malformed"):
         await svc.verify("not-a-jwt-at-all")
 
 
 async def test_missing_sub_claim_raises():
-    priv = _rsa_key()
-    ctx  = _make_key_ctx(priv)
-    cache = VerificationKeyCache()
-    cache.update([ctx])
+    priv   = _rsa_key()
+    record = _make_key_record(priv)
+    cache  = VerificationKeyCache()
+    cache.update([record])
 
     now = datetime.now(timezone.utc)
     token = jwt.encode(

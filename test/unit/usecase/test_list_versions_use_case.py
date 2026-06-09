@@ -11,7 +11,7 @@ import pytest
 
 from app.application.dto.version.ListVersionsQuery import ListVersionsQuery
 from app.application.usecase.version.ListVersionsUseCase import ListVersionsUseCase
-from domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
 from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, make_object, make_version, mock_auth
