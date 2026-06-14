@@ -33,6 +33,7 @@ def _cmd(requester: bytes = OWNER_ID) -> PurgeObjectCommand:
 def _make_uc(*, obj=None, versions=None, blob_delete_raises=False):
     load_obj = MagicMock()
     load_obj.find_by_id = AsyncMock(return_value=obj)
+    load_obj.find_by_id_for_update = AsyncMock(return_value=obj)
 
     load_ver = MagicMock()
     load_ver.find_by_object = AsyncMock(return_value=versions or [])
@@ -78,7 +79,9 @@ async def test_deletes_blob_for_each_version():
 async def test_records_audit_on_purge():
     audit = mock_audit()
     load_obj = MagicMock()
-    load_obj.find_by_id = AsyncMock(return_value=make_object(status=ObjectStatus.SOFT_DELETED))
+    _purge_obj = make_object(status=ObjectStatus.SOFT_DELETED)
+    load_obj.find_by_id = AsyncMock(return_value=_purge_obj)
+    load_obj.find_by_id_for_update = AsyncMock(return_value=_purge_obj)
     load_ver = MagicMock()
     load_ver.find_by_object = AsyncMock(return_value=[])
     save = MagicMock()

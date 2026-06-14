@@ -31,6 +31,28 @@ python app/main.py
 
 ---
 
+## Việc đang chờ làm
+
+- **Migrate sang gRPC client SDK + mTLS động - ĐÃ XONG (2026-06-13).** Theo
+  [`.claude/docs/migrate-grpc-client-mtls.md`](.claude/docs/migrate-grpc-client-mtls.md).
+  Đã thực hiện:
+  - Sinh SDK `clients/trust/` từ `contracts/trust/key_distribution.proto`
+    (`xime grpc client`) - `KeyDistributionServiceClient` + Pydantic model.
+  - `TrustKeyClient` thành adapter mỏng bọc SDK (bỏ dựng channel/stub tay,
+    `reset_channel`, `pre_destroy`); channel do framework quản lý.
+  - `config/grpc.py`: `configure_grpc_clients("trust", KeyDistributionServiceClient)`;
+    `application.yml`: thêm `grpc.clients.trust` (tls dynamic).
+  - Dọn server: `TrustStartupOrchestrator` bỏ bước build server SSL;
+    `CertRotationJob` rút còn `cert_sync.synchronize()` (không reload/reset tay).
+  - Verify: 131 unit test xanh, `app.start()` khởi động trọn vẹn với nối dây mới.
+  - **Còn 1 việc tay (chưa tự xóa theo quy tắc):** xóa file thừa
+    `app/integration/trust/ssl/GrpcServerSslContextProvider.py` (đã gỡ mọi tham
+    chiếu, hiện chỉ còn bị auto-scan tạo singleton vô hại). `GrpcTrustCertificateClient`
+    GIỮ NGUYÊN viết tay (bootstrap chicken-egg, đúng thiết kế).
+  - data-service giờ là service mẫu cho notification-service migrate theo.
+
+---
+
 ## Tài liệu trong .claude/
 
 ### Docs — Thiết kế & Kiến trúc

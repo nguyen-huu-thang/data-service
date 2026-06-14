@@ -139,6 +139,14 @@ shard_id
 
 Được Trust Service xác thực bằng mTLS.
 
+Cert của service thuộc Application Layer mang thêm:
+
+```text
+owner_app_identity_id
+```
+
+(24 byte - app mà service này thuộc về, dùng để resolve subject APPLICATION; service Base Platform không có trường này).
+
 Service không sở hữu dữ liệu.
 
 Service chỉ thực hiện hành động thay mặt Subject.
@@ -222,18 +230,23 @@ aud = data-service
 
 ## Bước 3 — Resolve Subject
 
-Lấy:
+Subject được resolve theo hai đường (chốt 2026-06, xem [mo-hinh-subject-va-dinh-danh.md](mo-hinh-subject-va-dinh-danh.md)):
 
 ```text
-sub
+Request có JWT                  → subject = JWT.sub                    (HUMAN / BOT / AI_AGENT)
+Không JWT, cert có app id       → subject = cert.owner_app_identity_id (APPLICATION)
+Không JWT, cert không có app id → KHÔNG có subject (chỉ endpoint hạ tầng: health, sync)
 ```
 
-từ JWT.
+APPLICATION **không bao giờ dùng JWT** - service con của app được Trust khắc `owner_app_identity_id` vào cert (SAN); Data Service đọc trực tiếp từ cert đã verify ở Bước 1.
+
+Quy tắc ưu tiên: JWT thắng khi cả hai cùng có mặt (service xử lý request của user thì subject là user); muốn hành động nhân danh app thì gọi **không kèm JWT**. Adapter external (REST public) chỉ chấp nhận đường JWT.
 
 Ví dụ:
 
 ```text
-identity_id = APP001
+identity_id = USER123   (từ JWT - HUMAN)
+identity_id = APP001    (từ cert - APPLICATION)
 ```
 
 Sau đó:
@@ -271,6 +284,8 @@ Kết quả:
 ```text
 Authenticated Subject
 ```
+
+Kèm check **status** từ subject_cache (vd app DISABLED → DENY) - bắt buộc với APPLICATION vì cert sống ~100 ngày, trạng thái không nằm trong cert.
 
 ---
 
@@ -538,13 +553,14 @@ Retry
 
 Data Service cache Subject Information.
 
-Source of truth nằm ở Subject Service.
+Source of truth nằm ở Subject Owner Service.
 
 Ví dụ:
 
 ```text
-user-service
-application-service
+user-service          (HUMAN)
+agent-service         (BOT / AI_AGENT)
+application-service   (APPLICATION)
 ```
 
 ---
@@ -577,11 +593,12 @@ Periodic Sync
 
 Data Service cache quyền hệ thống.
 
-Source of truth nằm ở:
+Source of truth nằm ở owner service của Subject:
 
 ```text
-application-service
-subject-service
+application-service   (quyền của APPLICATION)
+agent-service         (quyền của BOT / AI_AGENT)
+user-service          (quyền của HUMAN)
 ```
 
 ---
@@ -772,6 +789,8 @@ Data Service
 | Thành phần                   | Mô tả                          |
 | ---------------------------- | ------------------------------ |
 | JWT Verification             | Verify JWT từ Identity Service |
+| Application Subject Resolution | Resolve subject APPLICATION từ `owner_app_identity_id` trong cert (không JWT) |
+| Subject Status Check         | Check trạng thái subject từ subject cache (vd app DISABLED → DENY) |
 | VerificationKeyCache         | Cache Public Key               |
 | Subject Cache                | Cache Subject Information      |
 | Permission Cache             | Cache System Permission        |

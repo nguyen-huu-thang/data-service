@@ -140,6 +140,8 @@ Application có thể:
 * được cấp quyền hệ thống
 * thực hiện thao tác trên Data Service
 
+Application **không dùng JWT** (chốt 2026-06): service con của app được định danh bằng cert mang `owner_app_identity_id` (Trust khắc vào SAN); Data Service resolve subject APPLICATION trực tiếp từ cert. Chi tiết: [mo-hinh-subject-va-dinh-danh.md](mo-hinh-subject-va-dinh-danh.md).
+
 ---
 
 ### Service không phải Subject
@@ -509,6 +511,21 @@ Quản lý:
 ```text
 APPLICATION
 ```
+
+Nguồn sync trạng thái + System Permission cho subject APPLICATION (subject_cache, subject_permission).
+
+---
+
+### Agent Service
+
+Quản lý:
+
+```text
+BOT
+AI_AGENT
+```
+
+(Tên chốt thay cho "bot-service" trong tài liệu cũ - bao trùm bot, AI agent, robot phần cứng. Agent có credential và JWT qua Identity như HUMAN.)
 
 ---
 

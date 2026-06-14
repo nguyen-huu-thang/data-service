@@ -232,6 +232,7 @@ Source of truth không nằm ở Data Service.
 | identity_id  | binary(24) |
 | subject_type | varchar    |
 | name         | varchar    |
+| status       | varchar    |
 | updated_at   | timestamp  |
 
 Mục đích:
@@ -241,7 +242,10 @@ Audit
 Logging
 Debug
 Monitoring
+Subject status check
 ```
+
+Cột `status` (bổ sung 2026-06): trạng thái subject (vd ACTIVE / DISABLED) sync từ owner service. Bắt buộc với APPLICATION - app được định danh qua cert sống ~100 ngày, nên việc disable app phải chặn được qua cache này trong vài phút. Xem [mo-hinh-subject-va-dinh-danh.md](mo-hinh-subject-va-dinh-danh.md).
 
 ---
 

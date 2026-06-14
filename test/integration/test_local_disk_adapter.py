@@ -101,3 +101,40 @@ async def test_generate_pointer_includes_owner_and_object(adapter: LocalDiskStor
 
     assert owner_id.hex()[:8] in ptr
     assert object_id.hex() in ptr
+
+
+# ── path traversal protection ───────────────────────────────────────────────────
+
+@pytest.mark.parametrize(
+    "malicious, expected_name",
+    [
+        ("../../etc/passwd",          "passwd"),
+        ("..\\..\\windows\\system32", "system32"),
+        ("a/b/c/payload.bin",         "payload.bin"),
+        ("..",                        "upload"),
+        ("",                          "upload"),
+    ],
+)
+async def test_generate_pointer_sanitizes_filename(
+    adapter: LocalDiskStorageAdapter, malicious: str, expected_name: str
+):
+    owner_id  = b'\x01' * 24
+    object_id = b'\xAA' * 24
+
+    ptr = await adapter.generate_pointer(owner_id, object_id, malicious)
+
+    # Pointer must stay within {owner_prefix}/{object_hex}/ — no traversal segments
+    assert ".." not in ptr
+    assert ptr == f"{owner_id.hex()[:8]}/{object_id.hex()}/{expected_name}"
+
+
+async def test_malicious_filename_cannot_escape_storage_root(adapter: LocalDiskStorageAdapter, tmp_path: Path):
+    owner_id  = b'\x01' * 24
+    object_id = b'\xAA' * 24
+
+    ptr = await adapter.generate_pointer(owner_id, object_id, "../../escaped.txt")
+    await adapter.upload(ptr, b"payload", "text/plain")
+
+    # The written file must reside under the storage root, not outside it
+    written = (tmp_path / ptr).resolve()
+    assert str(written).startswith(str(tmp_path.resolve()))

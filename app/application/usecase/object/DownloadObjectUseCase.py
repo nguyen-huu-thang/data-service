@@ -13,6 +13,22 @@ from app.domain.permission.capability.AclCapability import AclCapability
 
 
 class DownloadObjectUseCase:
+    """
+    Download object content.
+
+    Business flow:
+
+    1. Load object metadata
+    2. Ensure object exists and is not purged
+    3. Verify requester has download permission
+    4. Resolve content metadata
+    5. Write audit record
+    6. Download blob content
+    7. Return file data
+
+    Blob transfer is intentionally performed outside the
+    database transaction.
+    """
     def __init__(
         self,
         transaction: TransactionManager,

@@ -10,7 +10,7 @@ Chịu trách nhiệm: authentication orchestration, JWT issuing, refresh token 
 
 **Không phải**: user database, profile service, business account service, centralized credential database.
 
-Hỗ trợ: human identity, bot identity, service identity, machine identity, AI agent identity.
+Hỗ trợ: human, bot, AI agent (credential + JWT). **APPLICATION không đi qua Identity** - định danh bằng cert (`owner_app_identity_id` do Trust khắc vào SAN), xem [mo-hinh-subject-va-dinh-danh.md](mo-hinh-subject-va-dinh-danh.md).
 
 ---
 
@@ -27,8 +27,9 @@ Identity chỉ chứa:
 
 Thông tin domain thực tế **không** nằm trong identity-service:
 ```
-human identity_id → user-service → user profile
-bot identity_id   → bot-service  → bot metadata
+human identity_id        → user-service        → user profile
+bot/ai_agent identity_id → agent-service       → agent metadata
+application identity_id  → application-service → app metadata (không qua Identity)
 ```
 
 ---
@@ -38,9 +39,10 @@ bot identity_id   → bot-service  → bot metadata
 Credential **không** lưu trong identity-service. Credential nằm ở service sở hữu domain:
 
 ```
-Human credential   → user-service   (password, oauth, passkey, MFA)
-Bot credential     → bot-service
-System credential  → system-service
+Human credential        → user-service  (password, oauth, passkey, MFA)
+Bot/AI Agent credential → agent-service (API key)
+Application             → KHÔNG có credential (định danh qua cert, Trust cấp)
+Service                 → trust-service (certificate)
 ```
 
 ---
@@ -71,7 +73,7 @@ Client → Identity Service (POST /api/v1/auth/login)
 
 ```
 identity_id   (Id 24 bytes)
-subjectType   (human, bot, service, ai_agent)
+subjectType   (HUMAN, BOT, AI_AGENT - APPLICATION không đi qua login flow)
 shardId       (VD: VN01, EU02)
 serviceId     (service gốc của subject)
 tenantId
@@ -195,6 +197,7 @@ Request payload cũng chứa `service_id`, `shard_id` — compare với mTLS ide
 
 - Data Service nhận JWT từ client → verify signature bằng public key từ Trust Service → extract `identity_id`
 - `identity_id` trong JWT là nguồn duy nhất để xác định owner — Data Service **không** gọi user-service
+- Ngoại lệ APPLICATION: subject resolve từ `owner_app_identity_id` trong cert (không JWT) - xem [mo-hinh-subject-va-dinh-danh.md](mo-hinh-subject-va-dinh-danh.md)
 - Data Service phải check `aud` chứa `"data-service"` trước khi accept token
 - Data Service phải check `token_version` nếu lưu user state (phòng force logout)
 - Giao tiếp nội bộ với Identity/User Service (nếu cần) qua mTLS

@@ -14,6 +14,22 @@ from app.domain.permission.capability.AclCapability import AclCapability
 
 
 class ArchiveObjectUseCase:
+    """
+    Archive an existing object.
+
+    Business flow:
+
+    1. Load object
+    2. Ensure object exists and is not purged
+    3. Validate state transition -> ARCHIVED
+    4. Verify requester has DELETE capability
+    5. Archive object
+    6. Persist changes
+    7. Write audit record
+
+    All operations execute inside a single transaction.
+    """
+
     def __init__(
         self,
         transaction: TransactionManager,
@@ -29,24 +45,52 @@ class ArchiveObjectUseCase:
         self._audit = audit_service
 
     async def execute(self, command: ArchiveObjectCommand) -> None:
+        # Timestamp used for archive metadata.
         now = datetime.now(timezone.utc)
 
+        # Object update and audit logging must succeed or fail together.
         async with self._tx():
+
+            # Load current object state.
             obj = await self._load.find_by_id(command.object_id)
 
+            # Purged objects are treated as non-existent.
             if obj is None or obj.status == ObjectStatus.PURGED:
                 raise ObjectNotFoundException(command.object_id)
 
-            if not obj.can_transition_to(ObjectStatus.ARCHIVED):
-                raise InvalidObjectStateException(obj.status.value, ObjectStatus.ARCHIVED.value)
-
+            # Archive is considered a delete-like operation.
+            #
+            # Authorize before validating the state transition so an
+            # unauthorized caller cannot probe the object's current status.
+            #
+            # AuthorizationService grants access when:
+            # - requester has DATA_DELETE_ANY system permission
+            # - requester is object owner
+            # - requester has DELETE capability in object ACL
             await self._auth.require_capability(
-                command.requester_identity_id, obj, AclCapability.DELETE
+                command.requester_identity_id,
+                obj,
+                AclCapability.DELETE,
             )
 
+            # Domain state machine validation.
+            # Example:
+            # ACTIVE   -> ARCHIVED   (allowed)
+            # PURGED   -> ARCHIVED   (not allowed)
+            if not obj.can_transition_to(ObjectStatus.ARCHIVED):
+                raise InvalidObjectStateException(
+                    obj.status.value,
+                    ObjectStatus.ARCHIVED.value,
+                )
+
+            # Delegate state transition to domain model.
+            # Domain object decides how archive metadata is produced.
             archived = obj.archive(now)
+
+            # Persist archived state.
             await self._save.update(archived)
 
+            # Record immutable audit trail.
             await self._audit.record(
                 obj.object_id,
                 command.requester_identity_id,

@@ -51,4 +51,13 @@ class LocalDiskStorageAdapter:
         # Same input always → same output (idempotent re-upload safe)
         owner_prefix = owner_id.hex()[:8]
         object_hex = object_id.hex()
-        return f"{owner_prefix}/{object_hex}/{filename}"
+
+        # Sanitize filename to prevent path traversal.
+        # A malicious filename like "../../other_owner/obj/x" could otherwise
+        # escape the {owner}/{object} directory and overwrite another owner's
+        # blob. Strip every directory component and keep only the base name.
+        safe_name = filename.replace("\\", "/").split("/")[-1]
+        if not safe_name or safe_name in (".", ".."):
+            safe_name = "upload"
+
+        return f"{owner_prefix}/{object_hex}/{safe_name}"

@@ -38,6 +38,7 @@ def _cmd(requester: bytes = OWNER_ID) -> CreateVersionCommand:
 def _make_uc(*, obj=None, latest_version=None, auth_allow: bool = True):
     load_obj = MagicMock()
     load_obj.find_by_id = AsyncMock(return_value=obj)
+    load_obj.find_by_id_for_update = AsyncMock(return_value=obj)
 
     save_obj = MagicMock()
     save_obj.update = AsyncMock(return_value=None)

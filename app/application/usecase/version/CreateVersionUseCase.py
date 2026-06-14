@@ -52,46 +52,64 @@ class CreateVersionUseCase:
         if obj is None or obj.status == ObjectStatus.PURGED:
             raise ObjectNotFoundException(command.object_id)
 
-        if obj.status != ObjectStatus.ACTIVE:
-            raise InvalidObjectStateException(obj.status.value, ObjectStatus.ACTIVE.value)
-
+        # Authorize before validating lifecycle state so unauthorized callers
+        # cannot probe whether the object is ACTIVE/ARCHIVED/etc.
         await self._auth.require_capability(
             command.requester_identity_id, obj, AclCapability.WRITE
         )
+
+        if obj.status != ObjectStatus.ACTIVE:
+            raise InvalidObjectStateException(obj.status.value, ObjectStatus.ACTIVE.value)
 
         content_hash = hashlib.sha256(command.data).hexdigest()
         content_size = len(command.data)
         version_id = generate_id()
 
-        # Upload blob BEFORE DB transaction — blob is not transactional
+        # Upload blob BEFORE DB transaction — blob is not transactional.
+        # The pointer keys on version_id (unique up front), so the upload does
+        # not depend on the version number computed later inside the lock.
         storage_pointer = await self._blob.generate_pointer(
             obj.owner_identity_id, version_id, command.filename
         )
         await self._blob.upload(storage_pointer, command.data, command.content_type)
 
-        # Determine next version number from latest existing version
-        latest = await self._load_version.find_latest_by_object(command.object_id)
-        next_version_number = (latest.version_number + 1) if latest else 1
-
         now = datetime.now(timezone.utc)
-        version = ObjectVersion(
-            version_id=version_id,
-            object_id=command.object_id,
-            version_number=next_version_number,
-            storage_pointer=storage_pointer,
-            content_hash=ContentHash(content_hash),
-            content_size=content_size,
-            mime_type=MimeType(command.content_type),
-            created_by_identity_id=command.requester_identity_id,
-            created_by_subject_type=command.requester_subject_type,
-            created_at=now,
-        )
 
         try:
             async with self._tx():
+                # Lock the parent object row so concurrent version creations are
+                # serialized. Without this, two callers could read the same
+                # "latest" version and collide on UNIQUE(object_id, version_number).
+                locked = await self._load.find_by_id_for_update(command.object_id)
+                if locked is None or locked.status == ObjectStatus.PURGED:
+                    raise ObjectNotFoundException(command.object_id)
+                if locked.status != ObjectStatus.ACTIVE:
+                    raise InvalidObjectStateException(
+                        locked.status.value, ObjectStatus.ACTIVE.value
+                    )
+
+                # Determine next version number under the lock.
+                latest = await self._load_version.find_latest_by_object(command.object_id)
+                next_version_number = (latest.version_number + 1) if latest else 1
+
+                version = ObjectVersion(
+                    version_id=version_id,
+                    object_id=command.object_id,
+                    version_number=next_version_number,
+                    storage_pointer=storage_pointer,
+                    content_hash=ContentHash(content_hash),
+                    content_size=content_size,
+                    mime_type=MimeType(command.content_type),
+                    created_by_identity_id=command.requester_identity_id,
+                    created_by_subject_type=command.requester_subject_type,
+                    created_at=now,
+                )
+
                 await self._save_version.save(version)
-                updated_obj = obj.update_version(version_id, now)
+                updated_obj = locked.update_version(version_id, now)
                 await self._save.update(updated_obj)
+        except (ObjectNotFoundException, InvalidObjectStateException):
+            raise
         except Exception:
             _log.error(
                 "DB failed after blob upload — orphaned blob needs cleanup: "

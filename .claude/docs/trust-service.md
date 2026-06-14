@@ -63,7 +63,13 @@ name        VARCHAR(100)
 tenant      VARCHAR(100)
 status      VARCHAR(20)       ACTIVE / INACTIVE
 created_at  TIMESTAMP
+
+-- Bổ sung theo thiết kế 2026-06 (chưa implement):
+owner_app_identity_id  BYTEA(24) NULL   (app mà service thuộc về - Trust khắc vào SAN
+                                         của cert; service Base Platform để NULL)
 ```
+
+> Trường `owner_app_identity_id` phục vụ định danh subject APPLICATION không qua JWT - xem [mo-hinh-subject-va-dinh-danh.md](mo-hinh-subject-va-dinh-danh.md).
 
 ### shards
 

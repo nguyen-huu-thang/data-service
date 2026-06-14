@@ -14,6 +14,21 @@ from app.domain.permission.capability.AclCapability import AclCapability
 
 
 class DeleteObjectUseCase:
+    """
+    Soft-delete an existing object.
+
+    Business flow:
+
+    1. Load object
+    2. Ensure object exists and is not purged
+    3. Ensure object is not already deleted
+    4. Verify requester has delete permission
+    5. Mark object as deleted
+    6. Persist updated state
+    7. Write audit record
+
+    All operations execute inside a single transaction.
+    """
     def __init__(
         self,
         transaction: TransactionManager,
@@ -29,26 +44,53 @@ class DeleteObjectUseCase:
         self._audit = audit_service
 
     async def execute(self, command: DeleteObjectCommand) -> None:
+        # Timestamp used for deletion metadata.
         now = datetime.now(timezone.utc)
 
+        # Object update and audit logging must succeed or fail together.
         async with self._tx():
+
+            # Load current object state.
             obj = await self._load.find_by_id(command.object_id)
 
+            # Purged objects are treated as non-existent.
             if obj is None or obj.status == ObjectStatus.PURGED:
                 raise ObjectNotFoundException(command.object_id)
 
-            if obj.is_deleted():
-                raise ObjectAlreadyDeletedException(command.object_id)
-
+            # Delete permission is required.
+            #
+            # Authorize before inspecting the object's deleted state so an
+            # unauthorized caller cannot distinguish "already deleted" from
+            # "no permission".
+            #
+            # AuthorizationService grants access when:
+            # - requester has DATA_DELETE_ANY system permission
+            # - requester is object owner
+            # - requester has DELETE capability in object ACL
             await self._auth.require_capability(
                 command.requester_identity_id,
                 obj,
                 AclCapability.DELETE,
             )
 
+            # Prevent duplicate delete operations.
+            #
+            # DELETE is expected to transition an ACTIVE object into a
+            # deleted state. Repeating the operation is considered an
+            # application error rather than a no-op.
+            if obj.is_deleted():
+                raise ObjectAlreadyDeletedException(command.object_id)
+
+            # Delegate deletion rules to the domain model.
+            #
+            # Domain object decides how deletion metadata and state
+            # transitions are applied.
             deleted = obj.soft_delete(now)
+
+            # Persist updated object state.
             await self._save.update(deleted)
 
+            # Record immutable audit trail.
             await self._audit.record(
                 obj.object_id,
                 command.requester_identity_id,
