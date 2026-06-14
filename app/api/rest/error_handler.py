@@ -9,11 +9,12 @@ import logging
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from app.common.error.ErrorDef import ErrorDef
-from app.common.error.Visibility import Visibility
-from app.common.error.error_code import UNKNOWN, get_error
-from app.common.error.redaction import Channel, redact_for_channel
 from app.common.exception.AppException import AppException
+from app.domain.error.Channel import Channel
+from app.domain.error.ErrorDef import ErrorDef
+from app.domain.error.Visibility import Visibility
+from app.domain.error.error_code import UNKNOWN, get_error
+from app.domain.error.redaction import redact_for_channel
 
 _log = logging.getLogger(__name__)
 

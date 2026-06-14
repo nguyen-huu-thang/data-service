@@ -20,13 +20,20 @@ from typing import Any
 import grpc
 import grpc.aio
 
-from app.common.error.ErrorDef import ErrorDef
-from app.common.error.Visibility import Visibility
-from app.common.error.error_code import UNKNOWN, get_error
-from app.common.error.redaction import Channel, redact_for_channel
 from app.common.exception.AppException import AppException
+from app.domain.error.Channel import Channel
+from app.domain.error.ErrorDef import ErrorDef
+from app.domain.error.Visibility import Visibility
+from app.domain.error.error_code import UNKNOWN, get_error
+from app.domain.error.redaction import redact_for_channel
 
 _log = logging.getLogger(__name__)
+
+
+def _grpc_status(ed: ErrorDef) -> grpc.StatusCode:
+    # Map the domain-neutral GrpcCode to the grpc library status by matching name.
+    # Map GrpcCode trung lập của domain sang status thư viện grpc theo tên.
+    return grpc.StatusCode[ed.grpc_code.name]
 
 
 def _resolve(exc: Exception) -> ErrorDef:
@@ -71,7 +78,7 @@ class AppExceptionInterceptor(grpc.aio.ServerInterceptor):
                 raise
             except Exception as exc:
                 ed = _resolve(exc)
-                await context.abort(ed.grpc_status, ed.message, trailing_metadata=_metadata(ed))
+                await context.abort(_grpc_status(ed), ed.message, trailing_metadata=_metadata(ed))
 
         return wrapped
 
@@ -85,6 +92,6 @@ class AppExceptionInterceptor(grpc.aio.ServerInterceptor):
                 raise
             except Exception as exc:
                 ed = _resolve(exc)
-                await context.abort(ed.grpc_status, ed.message, trailing_metadata=_metadata(ed))
+                await context.abort(_grpc_status(ed), ed.message, trailing_metadata=_metadata(ed))
 
         return wrapped

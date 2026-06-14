@@ -1,20 +1,9 @@
 # Channel-based error redaction — enforces the visibility model at the adapter edge.
 # Che lỗi theo kênh — thực thi mô hình visibility ngay ở rìa adapter.
-from enum import Enum
-
-from app.common.error.ErrorDef import ErrorDef
-from app.common.error.Visibility import Visibility
-from app.common.error.error_code import UNKNOWN, generic_for
-
-
-class Channel(Enum):
-    # Service-to-service over gRPC mTLS — SYSTEM and PUBLIC may pass through.
-    # Liên service qua gRPC mTLS — SYSTEM và PUBLIC được phép lọt.
-    GRPC_INTERNAL = 1
-
-    # Browser / external REST — only PUBLIC may pass through.
-    # Browser / REST ngoài — chỉ PUBLIC được phép lọt.
-    REST_EXTERNAL = 2
+from app.domain.error.Channel import Channel
+from app.domain.error.ErrorDef import ErrorDef
+from app.domain.error.Visibility import Visibility
+from app.domain.error.error_code import UNKNOWN, generic_for
 
 
 def _is_allowed(visibility: Visibility, channel: Channel) -> bool:

@@ -5,8 +5,9 @@
 # REST handler and gRPC interceptor read `visibility` to redact per channel.
 # Ném một trong PrivateError / SystemError / PublicError kèm errorKey; REST
 # handler và gRPC interceptor đọc `visibility` để che lỗi theo kênh.
-from app.common.error.Visibility import Visibility
-from app.common.error.error_code import get_error
+from app.domain.error.GrpcCode import GrpcCode
+from app.domain.error.Visibility import Visibility
+from app.domain.error.error_code import get_error
 
 
 class AppException(Exception):
@@ -15,7 +16,7 @@ class AppException(Exception):
         self.error_key: str = d.error_key
         self.code: int = d.code
         self.http_status: int = d.http_status
-        self.grpc_status = d.grpc_status
+        self.grpc_code: GrpcCode = d.grpc_code
         self.visibility: Visibility = d.visibility
         # custom_message overrides the catalog text and IS what gets serialized,
         # so only pass client-safe text on PUBLIC codes.

@@ -1,10 +1,12 @@
 # Immutable descriptor of a single catalog error code.
 # Mô tả bất biến của một mã lỗi trong catalog.
+#
+# Domain pure: uses int http_status + a neutral GrpcCode (no grpc/framework dep).
+# Domain thuần: dùng int http_status + GrpcCode trung lập (không phụ thuộc grpc/framework).
 from dataclasses import dataclass
 
-import grpc
-
-from app.common.error.Visibility import Visibility
+from app.domain.error.GrpcCode import GrpcCode
+from app.domain.error.Visibility import Visibility
 
 
 @dataclass(frozen=True)
@@ -15,5 +17,5 @@ class ErrorDef:
     code: int
     message: str
     http_status: int
-    grpc_status: grpc.StatusCode
+    grpc_code: GrpcCode
     visibility: Visibility

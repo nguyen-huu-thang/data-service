@@ -5,9 +5,10 @@ Unit tests — channel redaction (the security-critical part of the standard).
   - SYSTEM   -> passes on gRPC (service-to-service), redacted on REST
   - PUBLIC   -> passes on every channel
 """
-from app.common.error.error_code import get_error
-from app.common.error.redaction import Channel, redact_for_channel
-from app.common.error.Visibility import Visibility
+from app.domain.error.Channel import Channel
+from app.domain.error.error_code import get_error
+from app.domain.error.redaction import redact_for_channel
+from app.domain.error.Visibility import Visibility
 
 _PRIVATE = get_error("E060000")  # data Private, INTERNAL
 _SYSTEM = get_error("E004003")   # common System, UNAUTHENTICATED

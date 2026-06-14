@@ -8,10 +8,9 @@ Enforces the platform standard so a future edit cannot silently break it:
   - visibility matches the thousands zone of the in-block offset
     (Private 0-3999 | System 4000-6999 | Public 7000-9999)
 """
-import grpc
-
-from app.common.error.error_code import ERROR_CODES, generic_for, get_error
-from app.common.error.Visibility import Visibility
+from app.domain.error.error_code import ERROR_CODES, generic_for, get_error
+from app.domain.error.GrpcCode import GrpcCode
+from app.domain.error.Visibility import Visibility
 
 _COMMON = range(0, 10000)
 _DATA = range(60000, 70000)
@@ -56,7 +55,7 @@ def test_visibility_matches_zone():
 def test_http_and_grpc_types():
     for ed in ERROR_CODES.values():
         assert isinstance(ed.http_status, int)
-        assert isinstance(ed.grpc_status, grpc.StatusCode)
+        assert isinstance(ed.grpc_code, GrpcCode)
 
 
 def test_unknown_key_falls_back_to_e000000():
