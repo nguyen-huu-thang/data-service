@@ -3,7 +3,7 @@ from app.application.port.outbound.permission.LoadSubjectPermissionPort import L
 from app.domain.object.model.DataObject import DataObject
 from app.domain.permission.capability.AclCapability import AclCapability
 from app.domain.permission.capability.ObjectCapability import ObjectCapability
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
+from app.common.exception.AppException import PublicError
 
 # Capabilities that PUBLIC objects expose without any ACL check
 _PUBLIC_FREE_CAPS = frozenset({AclCapability.READ, AclCapability.DOWNLOAD})
@@ -60,4 +60,4 @@ class AuthorizationService:
             object_id=obj.object_id,
         )
         if permission is None or not permission.has_capability(capability):
-            raise PermissionDeniedException()
+            raise PublicError("E007004")

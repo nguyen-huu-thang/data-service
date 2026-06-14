@@ -4,7 +4,7 @@ from app.application.dto.object.GetObjectQuery import GetObjectQuery
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.service.audit.AuditService import AuditService
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
+from app.common.exception.AppException import PublicError
 from app.domain.object.model.DataObject import DataObject
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.permission.capability.AclCapability import AclCapability
@@ -51,7 +51,7 @@ class GetObjectUseCase:
             # Clients should not be able to distinguish between
             # "never existed" and "permanently removed".
             if obj is None or obj.status == ObjectStatus.PURGED:
-                raise ObjectNotFoundException(query.object_id)
+                raise PublicError("E067000")
 
             # Read permission is required.
             #

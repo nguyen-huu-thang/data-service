@@ -7,8 +7,7 @@ from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.application.service.audit.AuditService import AuditService
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
+from app.common.exception.AppException import PublicError
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.permission.capability.AclCapability import AclCapability
 
@@ -56,7 +55,7 @@ class ArchiveObjectUseCase:
 
             # Purged objects are treated as non-existent.
             if obj is None or obj.status == ObjectStatus.PURGED:
-                raise ObjectNotFoundException(command.object_id)
+                raise PublicError("E067000")
 
             # Archive is considered a delete-like operation.
             #
@@ -78,10 +77,7 @@ class ArchiveObjectUseCase:
             # ACTIVE   -> ARCHIVED   (allowed)
             # PURGED   -> ARCHIVED   (not allowed)
             if not obj.can_transition_to(ObjectStatus.ARCHIVED):
-                raise InvalidObjectStateException(
-                    obj.status.value,
-                    ObjectStatus.ARCHIVED.value,
-                )
+                raise PublicError("E067002")
 
             # Delegate state transition to domain model.
             # Domain object decides how archive metadata is produced.

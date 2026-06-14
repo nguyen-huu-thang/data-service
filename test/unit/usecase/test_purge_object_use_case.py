@@ -10,12 +10,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from test._app_errors import raises_app
+
 from app.application.dto.object.PurgeObjectCommand import PurgeObjectCommand
 from app.application.usecase.object.PurgeObjectUseCase import PurgeObjectUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
-from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, VERSION_ID, make_object, make_version, mock_audit, mock_tx
 
 pytestmark = pytest.mark.asyncio
@@ -117,7 +116,7 @@ async def test_blob_delete_failure_does_not_block_purge():
 @pytest.mark.parametrize("bad_status", [ObjectStatus.ACTIVE, ObjectStatus.ARCHIVED])
 async def test_raises_invalid_state_for_non_soft_deleted(bad_status):
     uc, _, _ = _make_uc(obj=make_object(status=bad_status))
-    with pytest.raises(InvalidObjectStateException):
+    with raises_app("E067002"):
         await uc.execute(_cmd())
 
 
@@ -125,13 +124,13 @@ async def test_raises_invalid_state_for_non_soft_deleted(bad_status):
 
 async def test_raises_not_found_when_missing():
     uc, _, _ = _make_uc(obj=None)
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_cmd())
 
 
 async def test_raises_not_found_for_already_purged():
     uc, _, _ = _make_uc(obj=make_object(status=ObjectStatus.PURGED))
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_cmd())
 
 
@@ -142,5 +141,5 @@ async def test_raises_permission_denied_for_non_owner():
         status=ObjectStatus.SOFT_DELETED,
         owner_identity_id=OWNER_ID,
     ))
-    with pytest.raises(PermissionDeniedException):
+    with raises_app("E007004"):
         await uc.execute(_cmd(requester=OTHER_ID))

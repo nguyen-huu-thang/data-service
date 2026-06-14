@@ -1,18 +1,15 @@
-import logging
-
-import grpc
-
 from app.api.grpc.internal.generated.object_internal_service_pb2 import PurgeObjectResponse
 from app.api.grpc.internal.generated.object_internal_service_pb2_grpc import (
     ObjectInternalServiceServicer,
 )
 from app.application.dto.object.PurgeObjectCommand import PurgeObjectCommand
 from app.application.usecase.object.PurgeObjectUseCase import PurgeObjectUseCase
-from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
 
-_log = logging.getLogger(__name__)
+# Exceptions raised here propagate to AppExceptionInterceptor
+# (app/api/grpc/interceptor/AppExceptionInterceptor.py), which redacts per the
+# GRPC_INTERNAL channel and aborts with xime-error metadata. No per-method catch.
+# Exception ném ở đây propagate tới AppExceptionInterceptor để che theo kênh
+# GRPC_INTERNAL và abort kèm metadata xime-error. Không bắt lỗi theo từng method.
 
 
 class ObjectInternalGrpcHandler(ObjectInternalServiceServicer):
@@ -25,21 +22,11 @@ class ObjectInternalGrpcHandler(ObjectInternalServiceServicer):
         self._purge = purge_object_use_case
 
     async def PurgeObject(self, request, context):
-        try:
-            command = PurgeObjectCommand(
-                requester_identity_id=request.requester_identity_id,
-                requester_subject_type=getattr(request, "requester_subject_type", "APPLICATION"),
-                requester_name=getattr(request, "requester_name", ""),
-                object_id=request.object_id,
-            )
-            await self._purge.execute(command)
-            return PurgeObjectResponse(object_id=request.object_id)
-        except ObjectNotFoundException:
-            await context.abort(grpc.StatusCode.NOT_FOUND, "Object not found")
-        except InvalidObjectStateException as e:
-            await context.abort(grpc.StatusCode.FAILED_PRECONDITION, str(e))
-        except PermissionDeniedException:
-            await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Permission denied")
-        except Exception:
-            _log.exception("Unexpected error in PurgeObject")
-            await context.abort(grpc.StatusCode.INTERNAL, "Internal server error")
+        command = PurgeObjectCommand(
+            requester_identity_id=request.requester_identity_id,
+            requester_subject_type=getattr(request, "requester_subject_type", "APPLICATION"),
+            requester_name=getattr(request, "requester_name", ""),
+            object_id=request.object_id,
+        )
+        await self._purge.execute(command)
+        return PurgeObjectResponse(object_id=request.object_id)

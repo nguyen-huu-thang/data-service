@@ -9,9 +9,7 @@ from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.service.audit.AuditService import AuditService
-from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
+from app.common.exception.AppException import PublicError
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 
 _log = logging.getLogger(__name__)
@@ -68,7 +66,7 @@ class PurgeObjectUseCase:
 
             # Purged objects are treated as non-existent.
             if obj is None or obj.status == ObjectStatus.PURGED:
-                raise ObjectNotFoundException(command.object_id)
+                raise PublicError("E067000")
 
             # Purge is intentionally restricted to the owner.
             #
@@ -78,7 +76,7 @@ class PurgeObjectUseCase:
             # Checking ownership first avoids leaking object state to callers
             # who have no right to purge it.
             if obj.owner_identity_id != command.requester_identity_id:
-                raise PermissionDeniedException()
+                raise PublicError("E007004")
 
             # Purge is only allowed after soft deletion.
             #
@@ -90,10 +88,7 @@ class PurgeObjectUseCase:
             #
             # This prevents accidental permanent deletion.
             if not obj.can_transition_to(ObjectStatus.PURGED):
-                raise InvalidObjectStateException(
-                    obj.status.value,
-                    ObjectStatus.PURGED.value,
-                )
+                raise PublicError("E067002")
 
             # Blob storage cannot participate in a database transaction.
             #

@@ -7,8 +7,7 @@ from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.application.service.audit.AuditService import AuditService
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.exception.ObjectAlreadyDeletedException import ObjectAlreadyDeletedException
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
+from app.common.exception.AppException import PublicError
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.permission.capability.AclCapability import AclCapability
 
@@ -55,7 +54,7 @@ class DeleteObjectUseCase:
 
             # Purged objects are treated as non-existent.
             if obj is None or obj.status == ObjectStatus.PURGED:
-                raise ObjectNotFoundException(command.object_id)
+                raise PublicError("E067000")
 
             # Delete permission is required.
             #
@@ -79,7 +78,7 @@ class DeleteObjectUseCase:
             # deleted state. Repeating the operation is considered an
             # application error rather than a no-op.
             if obj.is_deleted():
-                raise ObjectAlreadyDeletedException(command.object_id)
+                raise PublicError("E067001")
 
             # Delegate deletion rules to the domain model.
             #

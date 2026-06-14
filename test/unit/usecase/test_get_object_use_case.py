@@ -9,11 +9,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from test._app_errors import raises_app
+
 from app.application.dto.object.GetObjectQuery import GetObjectQuery
 from app.application.usecase.object.GetObjectUseCase import GetObjectUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, make_object, mock_audit, mock_auth, mock_tx
 
 pytestmark = pytest.mark.asyncio
@@ -67,13 +67,13 @@ async def test_records_audit_on_success():
 
 async def test_raises_not_found_when_object_missing():
     uc = _make_use_case(obj=None)
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_query())
 
 
 async def test_raises_not_found_for_purged_object():
     uc = _make_use_case(obj=make_object(status=ObjectStatus.PURGED))
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_query())
 
 
@@ -81,5 +81,5 @@ async def test_raises_not_found_for_purged_object():
 
 async def test_raises_permission_denied_when_unauthorized():
     uc = _make_use_case(obj=make_object(), auth_allow=False)
-    with pytest.raises(PermissionDeniedException):
+    with raises_app("E007004"):
         await uc.execute(_query(requester=OTHER_ID))

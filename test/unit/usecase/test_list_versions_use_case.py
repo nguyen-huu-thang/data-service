@@ -9,11 +9,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from test._app_errors import raises_app
+
 from app.application.dto.version.ListVersionsQuery import ListVersionsQuery
 from app.application.usecase.version.ListVersionsUseCase import ListVersionsUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, make_object, make_version, mock_auth
 
 pytestmark = pytest.mark.asyncio
@@ -62,13 +62,13 @@ async def test_returns_empty_list_when_no_versions():
 
 async def test_raises_not_found_when_object_missing():
     uc = _make_uc(obj=None)
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_query())
 
 
 async def test_raises_not_found_for_purged_object():
     uc = _make_uc(obj=make_object(status=ObjectStatus.PURGED))
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_query())
 
 
@@ -76,5 +76,5 @@ async def test_raises_not_found_for_purged_object():
 
 async def test_raises_permission_denied_when_unauthorized():
     uc = _make_uc(obj=make_object(), versions=[], auth_allow=False)
-    with pytest.raises(PermissionDeniedException):
+    with raises_app("E007004"):
         await uc.execute(_query(requester=OTHER_ID))

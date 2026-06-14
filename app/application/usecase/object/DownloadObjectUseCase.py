@@ -7,7 +7,7 @@ from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePor
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.service.audit.AuditService import AuditService
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
+from app.common.exception.AppException import PublicError
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.permission.capability.AclCapability import AclCapability
 
@@ -53,7 +53,7 @@ class DownloadObjectUseCase:
             obj = await self._load.find_by_id(query.object_id)
 
             if obj is None or obj.status == ObjectStatus.PURGED:
-                raise ObjectNotFoundException(query.object_id)
+                raise PublicError("E067000")
 
             await self._auth.require_capability(
                 query.requester_identity_id,

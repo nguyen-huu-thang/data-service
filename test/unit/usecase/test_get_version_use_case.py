@@ -10,11 +10,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from test._app_errors import raises_app
+
 from app.application.dto.version.GetVersionQuery import GetVersionQuery
 from app.application.usecase.version.GetVersionUseCase import GetVersionUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, VERSION_ID, make_object, make_version, mock_auth
 
 pytestmark = pytest.mark.asyncio
@@ -57,13 +57,13 @@ async def test_returns_version_when_found():
 
 async def test_raises_not_found_when_object_missing():
     uc = _make_uc(obj=None, version=make_version())
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_query())
 
 
 async def test_raises_not_found_for_purged_object():
     uc = _make_uc(obj=make_object(status=ObjectStatus.PURGED), version=make_version())
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_query())
 
 
@@ -71,7 +71,7 @@ async def test_raises_not_found_for_purged_object():
 
 async def test_raises_not_found_when_version_missing():
     uc = _make_uc(obj=make_object(), version=None)
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_query())
 
 
@@ -79,7 +79,7 @@ async def test_raises_not_found_when_version_belongs_to_different_object():
     # Version exists but object_id doesn't match — prevent info leak
     v = make_version(object_id=b"\xff" * 24)  # different object
     uc = _make_uc(obj=make_object(), version=v)
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_query())
 
 
@@ -87,5 +87,5 @@ async def test_raises_not_found_when_version_belongs_to_different_object():
 
 async def test_raises_permission_denied_when_unauthorized():
     uc = _make_uc(obj=make_object(), version=make_version(), auth_allow=False)
-    with pytest.raises(PermissionDeniedException):
+    with raises_app("E007004"):
         await uc.execute(_query(requester=OTHER_ID))

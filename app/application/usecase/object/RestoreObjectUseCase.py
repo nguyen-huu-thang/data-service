@@ -6,9 +6,7 @@ from app.application.dto.object.RestoreObjectCommand import RestoreObjectCommand
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.application.service.audit.AuditService import AuditService
-from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
+from app.common.exception.AppException import PublicError
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 
 
@@ -57,7 +55,7 @@ class RestoreObjectUseCase:
             #
             # Restore is only supported for soft-deleted objects.
             if obj is None or obj.status == ObjectStatus.PURGED:
-                raise ObjectNotFoundException(command.object_id)
+                raise PublicError("E067000")
 
             # Restore is intentionally restricted to the owner.
             #
@@ -66,7 +64,7 @@ class RestoreObjectUseCase:
             # transition so an unauthorized caller cannot probe the object's
             # current status.
             if obj.owner_identity_id != command.requester_identity_id:
-                raise PermissionDeniedException()
+                raise PublicError("E007004")
 
             # Validate lifecycle transition.
             #
@@ -77,10 +75,7 @@ class RestoreObjectUseCase:
             #
             # Other states are rejected by the domain model.
             if not obj.can_transition_to(ObjectStatus.ACTIVE):
-                raise InvalidObjectStateException(
-                    obj.status.value,
-                    ObjectStatus.ACTIVE.value,
-                )
+                raise PublicError("E067002")
 
             # Delegate restore rules to the domain model.
             restored = obj.restore(now)

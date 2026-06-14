@@ -2,7 +2,7 @@ from app.application.dto.version.GetVersionQuery import GetVersionQuery
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
+from app.common.exception.AppException import PublicError
 from app.domain.object.model.ObjectVersion import ObjectVersion
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.permission.capability.AclCapability import AclCapability
@@ -23,7 +23,7 @@ class GetVersionUseCase:
         obj = await self._load.find_by_id(query.object_id)
 
         if obj is None or obj.status == ObjectStatus.PURGED:
-            raise ObjectNotFoundException(query.object_id)
+            raise PublicError("E067000")
 
         await self._auth.require_capability(
             query.requester_identity_id, obj, AclCapability.READ
@@ -33,6 +33,6 @@ class GetVersionUseCase:
 
         # Not found OR belongs to a different object — return not found to avoid info leak
         if version is None or version.object_id != query.object_id:
-            raise ObjectNotFoundException(query.version_id)
+            raise PublicError("E067000")
 
         return version

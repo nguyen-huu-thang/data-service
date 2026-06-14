@@ -9,12 +9,11 @@ from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 
+from test._app_errors import raises_app
+
 from app.application.dto.object.DeleteObjectCommand import DeleteObjectCommand
 from app.application.usecase.object.DeleteObjectUseCase import DeleteObjectUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
-from app.common.exception.ObjectAlreadyDeletedException import ObjectAlreadyDeletedException
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, make_object, mock_audit, mock_auth, mock_tx
 
 pytestmark = pytest.mark.asyncio
@@ -75,13 +74,13 @@ async def test_records_audit_on_delete():
 
 async def test_raises_not_found_when_object_missing():
     uc, _ = _make_uc(obj=None)
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_cmd())
 
 
 async def test_raises_not_found_for_purged_object():
     uc, _ = _make_uc(obj=make_object(status=ObjectStatus.PURGED))
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_cmd())
 
 
@@ -89,7 +88,7 @@ async def test_raises_not_found_for_purged_object():
 
 async def test_raises_already_deleted_for_soft_deleted_object():
     uc, _ = _make_uc(obj=make_object(status=ObjectStatus.SOFT_DELETED))
-    with pytest.raises(ObjectAlreadyDeletedException):
+    with raises_app("E067001"):
         await uc.execute(_cmd())
 
 
@@ -97,5 +96,5 @@ async def test_raises_already_deleted_for_soft_deleted_object():
 
 async def test_raises_permission_denied_when_unauthorized():
     uc, _ = _make_uc(obj=make_object(), auth_allow=False)
-    with pytest.raises(PermissionDeniedException):
+    with raises_app("E007004"):
         await uc.execute(_cmd(requester=OTHER_ID))

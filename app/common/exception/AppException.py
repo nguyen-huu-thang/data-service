@@ -1,0 +1,37 @@
+# Three base exception classes carrying a catalog error code.
+# Ba base exception class mang theo một mã lỗi trong catalog.
+#
+# Throw one of PrivateError / SystemError / PublicError with an errorKey; the
+# REST handler and gRPC interceptor read `visibility` to redact per channel.
+# Ném một trong PrivateError / SystemError / PublicError kèm errorKey; REST
+# handler và gRPC interceptor đọc `visibility` để che lỗi theo kênh.
+from app.common.error.Visibility import Visibility
+from app.common.error.error_code import get_error
+
+
+class AppException(Exception):
+    def __init__(self, error_key: str, custom_message: str | None = None) -> None:
+        d = get_error(error_key)
+        self.error_key: str = d.error_key
+        self.code: int = d.code
+        self.http_status: int = d.http_status
+        self.grpc_status = d.grpc_status
+        self.visibility: Visibility = d.visibility
+        # custom_message overrides the catalog text and IS what gets serialized,
+        # so only pass client-safe text on PUBLIC codes.
+        # custom_message ghi đè text catalog và LÀ thứ được serialize, nên chỉ
+        # truyền text an toàn cho client trên mã PUBLIC.
+        self.message: str = custom_message or d.message
+        super().__init__(self.message)
+
+
+class PrivateError(AppException):
+    """visibility = PRIVATE — internal only, redacted on every outbound channel."""
+
+
+class SystemError(AppException):
+    """visibility = SYSTEM — readable by internal services over gRPC mTLS."""
+
+
+class PublicError(AppException):
+    """visibility = PUBLIC — safe for browsers / external REST clients."""

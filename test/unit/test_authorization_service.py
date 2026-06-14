@@ -7,8 +7,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from test._app_errors import raises_app
+
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
 from app.domain.permission.capability.AclCapability import AclCapability
 from app.domain.permission.model.ObjectPermission import ObjectPermission
@@ -63,7 +64,7 @@ async def test_public_object_allows_download_without_acl():
 async def test_public_object_still_requires_acl_for_write():
     auth = _make_auth(None)  # no ACL entry
     obj = make_object(visibility=ObjectVisibility.PUBLIC)
-    with pytest.raises(PermissionDeniedException):
+    with raises_app("E007004"):
         await auth.require_capability(OTHER_ID, obj, AclCapability.WRITE)
 
 
@@ -77,7 +78,7 @@ async def test_viewer_can_read_private_object():
 async def test_viewer_cannot_write():
     auth = _make_auth(_make_permission(Role.VIEWER))
     obj = make_object(visibility=ObjectVisibility.PRIVATE)
-    with pytest.raises(PermissionDeniedException):
+    with raises_app("E007004"):
         await auth.require_capability(OTHER_ID, obj, AclCapability.WRITE)
 
 async def test_editor_can_write():
@@ -88,12 +89,12 @@ async def test_editor_can_write():
 async def test_editor_cannot_delete():
     auth = _make_auth(_make_permission(Role.EDITOR))
     obj = make_object()
-    with pytest.raises(PermissionDeniedException):
+    with raises_app("E007004"):
         await auth.require_capability(OTHER_ID, obj, AclCapability.DELETE)
 
 async def test_no_acl_entry_denies_all_for_private_object():
     auth = _make_auth(None)
     obj = make_object(visibility=ObjectVisibility.PRIVATE)
     for cap in AclCapability:
-        with pytest.raises(PermissionDeniedException):
+        with raises_app("E007004"):
             await auth.require_capability(OTHER_ID, obj, cap)

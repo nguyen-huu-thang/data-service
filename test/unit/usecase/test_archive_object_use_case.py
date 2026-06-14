@@ -10,12 +10,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from test._app_errors import raises_app
+
 from app.application.dto.object.ArchiveObjectCommand import ArchiveObjectCommand
 from app.application.usecase.object.ArchiveObjectUseCase import ArchiveObjectUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
-from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, make_object, mock_audit, mock_auth, mock_tx
 
 pytestmark = pytest.mark.asyncio
@@ -79,11 +78,11 @@ async def test_raises_invalid_state_for_non_archivable_status(bad_status):
     # PURGED is also caught as not-found first, but SOFT_DELETED hits invalid state
     if bad_status == ObjectStatus.PURGED:
         uc, _ = _make_uc(obj=make_object(status=bad_status))
-        with pytest.raises(ObjectNotFoundException):
+        with raises_app("E067000"):
             await uc.execute(_cmd())
     else:
         uc, _ = _make_uc(obj=make_object(status=bad_status))
-        with pytest.raises(InvalidObjectStateException):
+        with raises_app("E067002"):
             await uc.execute(_cmd())
 
 
@@ -91,7 +90,7 @@ async def test_raises_invalid_state_for_non_archivable_status(bad_status):
 
 async def test_raises_not_found_when_missing():
     uc, _ = _make_uc(obj=None)
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_cmd())
 
 
@@ -99,5 +98,5 @@ async def test_raises_not_found_when_missing():
 
 async def test_raises_permission_denied_when_unauthorized():
     uc, _ = _make_uc(obj=make_object(), auth_allow=False)
-    with pytest.raises(PermissionDeniedException):
+    with raises_app("E007004"):
         await uc.execute(_cmd(requester=OTHER_ID))

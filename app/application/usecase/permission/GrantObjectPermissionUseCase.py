@@ -9,7 +9,7 @@ from app.application.port.outbound.permission.LoadPermissionPort import LoadPerm
 from app.application.port.outbound.permission.SavePermissionPort import SavePermissionPort
 from app.application.service.audit.AuditService import AuditService
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
+from app.common.exception.AppException import PublicError
 from app.common.util.IdGenerator import generate_id
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.permission.capability.AclCapability import AclCapability
@@ -42,7 +42,7 @@ class GrantObjectPermissionUseCase:
             obj = await self._load.find_by_id(command.object_id)
 
             if obj is None or obj.status == ObjectStatus.PURGED:
-                raise ObjectNotFoundException(command.object_id)
+                raise PublicError("E067000")
 
             await self._auth.require_capability(
                 command.requester_identity_id, obj, AclCapability.SHARE

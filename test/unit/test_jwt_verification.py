@@ -18,7 +18,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.application.service.authorization.JwtVerificationService import JwtVerificationService
-from app.common.exception.InvalidTokenException import InvalidTokenException
+from app.common.exception.AppException import PublicError
 from app.domain.trust.VerificationKeyRecord import VerificationKeyRecord
 from app.integration.trust.key.VerificationKeyCache import VerificationKeyCache
 
@@ -117,7 +117,7 @@ async def test_expired_token_raises_invalid_token():
     priv = _rsa_key()
     svc  = _build_service(_make_key_record(priv))
 
-    with pytest.raises(InvalidTokenException, match="expired"):
+    with pytest.raises(PublicError, match="expired"):
         await svc.verify(_make_token(priv, exp_delta=-timedelta(hours=1)))
 
 
@@ -125,7 +125,7 @@ async def test_wrong_audience_raises_invalid_token():
     priv = _rsa_key()
     svc  = _build_service(_make_key_record(priv))
 
-    with pytest.raises(InvalidTokenException, match="audience"):
+    with pytest.raises(PublicError, match="audience"):
         await svc.verify(_make_token(priv, aud="wrong-service"))
 
 
@@ -133,7 +133,7 @@ async def test_wrong_issuer_raises_invalid_token():
     priv = _rsa_key()
     svc  = _build_service(_make_key_record(priv))
 
-    with pytest.raises(InvalidTokenException, match="issuer"):
+    with pytest.raises(PublicError, match="issuer"):
         await svc.verify(_make_token(priv, iss="wrong-issuer"))
 
 
@@ -142,7 +142,7 @@ async def test_unknown_kid_syncs_trust_then_raises():
     # Cache is empty AND Trust returns nothing → unknown key
     svc  = _build_service(None, trust_returns=[])
 
-    with pytest.raises(InvalidTokenException, match="Unknown or expired key"):
+    with pytest.raises(PublicError, match="Unknown or expired key"):
         await svc.verify(_make_token(priv, kid="no-such-key"))
 
     # Trust must have been called exactly once
@@ -165,7 +165,7 @@ async def test_malformed_token_raises_invalid_token():
     priv = _rsa_key()
     svc  = _build_service(_make_key_record(priv))
 
-    with pytest.raises(InvalidTokenException, match="Malformed"):
+    with pytest.raises(PublicError, match="Malformed"):
         await svc.verify("not-a-jwt-at-all")
 
 
@@ -190,5 +190,5 @@ async def test_missing_sub_claim_raises():
     config.get.return_value = _SERVICE_ID
     svc = JwtVerificationService(cache, trust, config)
 
-    with pytest.raises(InvalidTokenException, match="sub"):
+    with pytest.raises(PublicError, match="sub"):
         await svc.verify(token)

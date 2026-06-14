@@ -124,3 +124,24 @@ Capability: READ, WRITE, DELETE, SHARE, DOWNLOAD. Role: OWNER, EDITOR, VIEWER.
 - Thiếu type hint / binding / circular dependency → startup fail ngay
 
 Chi tiết đầy đủ: `D:\code\xime\xime framework\.claude\rules\coding.md`
+
+---
+
+## Mã lỗi & Exception
+
+Toàn platform dùng **một chuẩn mã lỗi/exception chung** - bắt buộc đọc trước khi viết bất kỳ exception nào, đừng tự định nghĩa kiểu riêng:
+
+`D:\code\xime\giới thiệu\.claude\docs\cross-cutting\quy-uoc-ma-loi-va-exception.md`
+([link tương đối](../../giới%20thiệu/.claude/docs/cross-cutting/quy-uoc-ma-loi-va-exception.md))
+
+- **Dải mã riêng của Data Service: `060000 - 069999`** (block 10.000). Chia 3 nhóm theo mức phơi bày (giảm dần bảo mật): **Private** `060000-063999` (lỗi nội bộ service) · **System** `064000-066999` (service khác đọc qua gRPC) · **Public** `067000-069999` (browser thấy).
+- Lỗi nghiệp vụ ném 1 trong 3 base class `PrivateError`/`SystemError`/`PublicError` mang một mã trong catalog; adapter tự che lỗi theo kênh. Body REST `{errorKey, code, message}`; gRPC + metadata `xime-error`. Không để lỗi thô/stack trace lọt ra ngoài phạm vi cho phép.
+- **Đã chuẩn hóa (2026-06-14)** theo **Phụ lục B (Python)** - data-service là service mẫu Python. Cấu trúc:
+  - **Catalog & redaction:** [`app/common/error/`](app/common/error/) - `Visibility.py`, `ErrorDef.py`, `error_code.py` (dict `ERROR_CODES`: common `00xxxx` + data `06xxxx`, kèm `get_error`/`generic_for`), `redaction.py` (`Channel` + `redact_for_channel`).
+  - **Ba base class:** [`app/common/exception/AppException.py`](app/common/exception/AppException.py) - `AppException` + `PrivateError`/`SystemError`/`PublicError`. Ném lỗi bằng `raise PublicError("E067000")`; không còn exception class rời.
+  - **REST:** [`app/api/rest/error_handler.py`](app/api/rest/error_handler.py) đăng ký qua `configure_exception_handlers` trong [`app/config/web.py`](app/config/web.py) (kênh `REST_EXTERNAL`).
+  - **gRPC:** [`app/api/grpc/interceptor/AppExceptionInterceptor.py`](app/api/grpc/interceptor/AppExceptionInterceptor.py) đăng ký qua `configure_grpc_interceptors` trong [`app/config/grpc.py`](app/config/grpc.py) (kênh `GRPC_INTERNAL`, abort kèm metadata `xime-error`/`xime-error-code`). Chạy innermost sau interceptor built-in của framework.
+  - **Đã gỡ** toàn bộ `try/except` hardcode trong controller/handler - lỗi propagate lên handler/interceptor toàn cục.
+  - **Test bảo vệ chuẩn:** `test/unit/test_error_catalog.py` (không trùng mã, visibility khớp vùng số), `test/unit/test_redaction.py`, `test/unit/test_rest_error_handler.py`, `test/unit/test_grpc_error_interceptor.py`.
+  - **Mã đã dùng:** Public `E067000` (object không tìm thấy) · `E067001` (object đã xóa) · `E067002` (sai trạng thái object); Private `E060000-E060002` (nội bộ/shard/blob); tái dùng common cho auth/permission/input (`E007001/2/3/4`, `E000000`).
+  - **Ghi chú framework:** vài điểm gap nhỏ của Xime Framework ghi ở [`framework-notes/ghi-chu-framework.md`](framework-notes/ghi-chu-framework.md) (không chặn).

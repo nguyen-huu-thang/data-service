@@ -84,11 +84,11 @@ def mock_audit() -> MagicMock:
 
 
 def mock_auth(*, allow: bool = True) -> MagicMock:
-    """Mock AuthorizationService. allow=False raises PermissionDeniedException."""
-    from app.common.exception.PermissionDeniedException import PermissionDeniedException
+    """Mock AuthorizationService. allow=False raises a permission-denied PublicError."""
+    from app.common.exception.AppException import PublicError
     svc = MagicMock()
     if allow:
         svc.require_capability = AsyncMock(return_value=None)
     else:
-        svc.require_capability = AsyncMock(side_effect=PermissionDeniedException())
+        svc.require_capability = AsyncMock(side_effect=PublicError("E007004"))
     return svc

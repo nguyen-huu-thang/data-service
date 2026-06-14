@@ -10,11 +10,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from test._app_errors import raises_app
+
 from app.application.dto.version.DownloadVersionQuery import DownloadVersionQuery
 from app.application.usecase.version.DownloadVersionUseCase import DownloadVersionUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, VERSION_ID, make_object, make_version, mock_audit, mock_auth
 
 pytestmark = pytest.mark.asyncio
@@ -94,26 +94,26 @@ async def test_records_audit_on_download():
 
 async def test_raises_not_found_when_object_missing():
     uc, _ = _make_uc(obj=None)
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_query())
 
 
 async def test_raises_not_found_for_purged_object():
     uc, _ = _make_uc(obj=make_object(status=ObjectStatus.PURGED))
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_query())
 
 
 async def test_raises_not_found_when_version_missing():
     uc, _ = _make_uc(obj=make_object(), version=None)
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_query())
 
 
 async def test_raises_not_found_when_version_belongs_to_different_object():
     v = make_version(object_id=b"\xff" * 24)
     uc, _ = _make_uc(obj=make_object(), version=v)
-    with pytest.raises(ObjectNotFoundException):
+    with raises_app("E067000"):
         await uc.execute(_query())
 
 
@@ -121,5 +121,5 @@ async def test_raises_not_found_when_version_belongs_to_different_object():
 
 async def test_raises_permission_denied_when_unauthorized():
     uc, _ = _make_uc(obj=make_object(), version=make_version(), auth_allow=False)
-    with pytest.raises(PermissionDeniedException):
+    with raises_app("E007004"):
         await uc.execute(_query(requester=OTHER_ID))

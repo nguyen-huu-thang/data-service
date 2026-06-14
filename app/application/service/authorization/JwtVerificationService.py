@@ -5,7 +5,7 @@ import jwt
 from xime.core.config.runtime import RuntimeConfig
 
 from app.application.dto.auth.VerifiedClaims import VerifiedClaims
-from app.common.exception.InvalidTokenException import InvalidTokenException
+from app.common.exception.AppException import PublicError
 from app.integration.trust.key.TrustKeyClient import TrustKeyClient
 from app.integration.trust.key.VerificationKeyCache import VerificationKeyCache
 
@@ -30,11 +30,11 @@ class JwtVerificationService:
         try:
             header = jwt.get_unverified_header(token)
         except jwt.DecodeError as e:
-            raise InvalidTokenException(f"Malformed token header: {e}") from e
+            raise PublicError("E007002",f"Malformed token header: {e}") from e
 
         kid = header.get("kid")
         if not kid:
-            raise InvalidTokenException("Missing kid in token header")
+            raise PublicError("E007002","Missing kid in token header")
 
         now = datetime.now(timezone.utc)
         key_ctx = self._cache.resolve(kid, now)
@@ -49,12 +49,12 @@ class JwtVerificationService:
                 self._cache.update(keys)
             except Exception as e:
                 _log.error("Failed to sync verification keys from Trust Service: %s", e)
-                raise InvalidTokenException("Cannot resolve verification key") from e
+                raise PublicError("E007002","Cannot resolve verification key") from e
 
             key_ctx = self._cache.resolve(kid, now)
 
         if key_ctx is None:
-            raise InvalidTokenException(f"Unknown or expired key: kid={kid}")
+            raise PublicError("E007002",f"Unknown or expired key: kid={kid}")
 
         try:
             payload = jwt.decode(
@@ -65,26 +65,26 @@ class JwtVerificationService:
                 issuer=_SIGNER_SERVICE_ID,
             )
         except jwt.ExpiredSignatureError as e:
-            raise InvalidTokenException("Token has expired") from e
+            raise PublicError("E007003", "Token has expired") from e
         except jwt.InvalidAudienceError as e:
-            raise InvalidTokenException("Token audience mismatch") from e
+            raise PublicError("E007002","Token audience mismatch") from e
         except jwt.InvalidIssuerError as e:
-            raise InvalidTokenException("Token issuer mismatch") from e
+            raise PublicError("E007002","Token issuer mismatch") from e
         except jwt.PyJWTError as e:
-            raise InvalidTokenException(f"Token verification failed: {e}") from e
+            raise PublicError("E007002",f"Token verification failed: {e}") from e
 
         sub = payload.get("sub")
         if not sub:
-            raise InvalidTokenException("Missing sub claim")
+            raise PublicError("E007002","Missing sub claim")
 
         token_version = payload.get("token_version")
         if token_version is None:
-            raise InvalidTokenException("Missing token_version claim")
+            raise PublicError("E007002","Missing token_version claim")
 
         try:
             identity_id = bytes.fromhex(sub)
         except ValueError as e:
-            raise InvalidTokenException(f"Invalid sub format (expected hex): {e}") from e
+            raise PublicError("E007002",f"Invalid sub format (expected hex): {e}") from e
 
         subject_type = payload.get("subject_type", "HUMAN")
         name = payload.get("name", "")

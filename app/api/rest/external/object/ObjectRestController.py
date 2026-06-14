@@ -1,6 +1,4 @@
-import logging
-
-from fastapi import File, Form, Header, HTTPException, Response, UploadFile
+from fastapi import File, Form, Header, Response, UploadFile
 
 from xime.adapters.web import delete, get, post
 
@@ -23,20 +21,21 @@ from app.application.usecase.object.DeleteObjectUseCase import DeleteObjectUseCa
 from app.application.usecase.object.DownloadObjectUseCase import DownloadObjectUseCase
 from app.application.usecase.object.GetObjectUseCase import GetObjectUseCase
 from app.application.usecase.object.RestoreObjectUseCase import RestoreObjectUseCase
-from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
-from app.common.exception.InvalidTokenException import InvalidTokenException
-from app.common.exception.ObjectAlreadyDeletedException import ObjectAlreadyDeletedException
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
+from app.common.exception.AppException import PublicError
 from app.domain.object.valueobject.ObjectType import ObjectType
 from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
 
-_log = logging.getLogger(__name__)
+# Business and auth errors raised below propagate to the global AppException
+# handler (app/api/rest/error_handler.py), which renders {errorKey, code, message}
+# and redacts per channel. No per-endpoint try/except needed.
+# Lỗi nghiệp vụ và xác thực ném ra dưới đây propagate tới handler AppException toàn
+# cục (app/api/rest/error_handler.py) để render {errorKey, code, message} và che
+# theo kênh. Không cần try/except theo từng endpoint.
 
 
 def _require_token(authorization: str | None) -> str:
     if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+        raise PublicError("E007002", "Missing or invalid Authorization header")
     return authorization[7:]
 
 
@@ -44,7 +43,7 @@ def _parse_object_id(hex_id: str) -> bytes:
     try:
         return bytes.fromhex(hex_id)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid object_id: {hex_id}")
+        raise PublicError("E007001", f"Invalid object_id: {hex_id}")
 
 
 class ObjectRestController:
@@ -80,33 +79,28 @@ class ObjectRestController:
         tenant_id: str | None = Form(default=None),
         authorization: str | None = Header(default=None),
     ) -> CreateObjectResponse:
+        claims = await self._jwt.verify(_require_token(authorization))
+        # Enum parsing — a bad value is client input, surfaced as a public 400.
+        # Parse enum — giá trị sai là input của client, trả 400 public.
         try:
-            claims = await self._jwt.verify(_require_token(authorization))
-            data = await file.read()
-            command = CreateObjectCommand(
-                requester_identity_id=claims.identity_id,
-                requester_subject_type=claims.subject_type,
-                requester_name=claims.name,
-                object_type=ObjectType(object_type),
-                visibility=ObjectVisibility(visibility),
-                filename=file.filename or "upload",
-                content_type=file.content_type or "application/octet-stream",
-                data=data,
-                tenant_id=tenant_id or None,
-            )
-            result = await self._create.execute(command)
-            return self._mapper.to_create_response(result)
-        except HTTPException:
-            raise
-        except InvalidTokenException as e:
-            raise HTTPException(status_code=401, detail=str(e))
-        except (ValueError, KeyError) as e:
-            raise HTTPException(status_code=400, detail=str(e))
-        except PermissionDeniedException:
-            raise HTTPException(status_code=403, detail="Permission denied")
-        except Exception:
-            _log.exception("Unexpected error in create_object")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            parsed_type = ObjectType(object_type)
+            parsed_visibility = ObjectVisibility(visibility)
+        except ValueError as e:
+            raise PublicError("E007001", str(e))
+        data = await file.read()
+        command = CreateObjectCommand(
+            requester_identity_id=claims.identity_id,
+            requester_subject_type=claims.subject_type,
+            requester_name=claims.name,
+            object_type=parsed_type,
+            visibility=parsed_visibility,
+            filename=file.filename or "upload",
+            content_type=file.content_type or "application/octet-stream",
+            data=data,
+            tenant_id=tenant_id or None,
+        )
+        result = await self._create.execute(command)
+        return self._mapper.to_create_response(result)
 
     @get("/{object_id}", response_model=ObjectResponse, summary="Get object metadata")
     async def get_object(
@@ -114,27 +108,15 @@ class ObjectRestController:
         object_id: str,
         authorization: str | None = Header(default=None),
     ) -> ObjectResponse:
-        try:
-            claims = await self._jwt.verify(_require_token(authorization))
-            query = GetObjectQuery(
-                requester_identity_id=claims.identity_id,
-                requester_subject_type=claims.subject_type,
-                requester_name=claims.name,
-                object_id=_parse_object_id(object_id),
-            )
-            obj = await self._get.execute(query)
-            return self._mapper.to_object_response(obj)
-        except HTTPException:
-            raise
-        except InvalidTokenException as e:
-            raise HTTPException(status_code=401, detail=str(e))
-        except ObjectNotFoundException:
-            raise HTTPException(status_code=404, detail="Object not found")
-        except PermissionDeniedException:
-            raise HTTPException(status_code=403, detail="Permission denied")
-        except Exception:
-            _log.exception("Unexpected error in get_object")
-            raise HTTPException(status_code=500, detail="Internal server error")
+        claims = await self._jwt.verify(_require_token(authorization))
+        query = GetObjectQuery(
+            requester_identity_id=claims.identity_id,
+            requester_subject_type=claims.subject_type,
+            requester_name=claims.name,
+            object_id=_parse_object_id(object_id),
+        )
+        obj = await self._get.execute(query)
+        return self._mapper.to_object_response(obj)
 
     @get("/{object_id}/download", summary="Download object blob")
     async def download_object(
@@ -142,34 +124,22 @@ class ObjectRestController:
         object_id: str,
         authorization: str | None = Header(default=None),
     ) -> Response:
-        try:
-            claims = await self._jwt.verify(_require_token(authorization))
-            query = DownloadObjectQuery(
-                requester_identity_id=claims.identity_id,
-                requester_subject_type=claims.subject_type,
-                requester_name=claims.name,
-                object_id=_parse_object_id(object_id),
-            )
-            result = await self._download.execute(query)
-            return Response(
-                content=result.data,
-                media_type=result.mime_type,
-                headers={
-                    "Content-Length": str(result.content_size),
-                    "Content-Disposition": "attachment",
-                },
-            )
-        except HTTPException:
-            raise
-        except InvalidTokenException as e:
-            raise HTTPException(status_code=401, detail=str(e))
-        except ObjectNotFoundException:
-            raise HTTPException(status_code=404, detail="Object not found")
-        except PermissionDeniedException:
-            raise HTTPException(status_code=403, detail="Permission denied")
-        except Exception:
-            _log.exception("Unexpected error in download_object")
-            raise HTTPException(status_code=500, detail="Internal server error")
+        claims = await self._jwt.verify(_require_token(authorization))
+        query = DownloadObjectQuery(
+            requester_identity_id=claims.identity_id,
+            requester_subject_type=claims.subject_type,
+            requester_name=claims.name,
+            object_id=_parse_object_id(object_id),
+        )
+        result = await self._download.execute(query)
+        return Response(
+            content=result.data,
+            media_type=result.mime_type,
+            headers={
+                "Content-Length": str(result.content_size),
+                "Content-Disposition": "attachment",
+            },
+        )
 
     @delete("/{object_id}", status_code=204, summary="Soft delete an object")
     async def delete_object(
@@ -177,28 +147,14 @@ class ObjectRestController:
         object_id: str,
         authorization: str | None = Header(default=None),
     ) -> None:
-        try:
-            claims = await self._jwt.verify(_require_token(authorization))
-            command = DeleteObjectCommand(
-                requester_identity_id=claims.identity_id,
-                requester_subject_type=claims.subject_type,
-                requester_name=claims.name,
-                object_id=_parse_object_id(object_id),
-            )
-            await self._delete.execute(command)
-        except HTTPException:
-            raise
-        except InvalidTokenException as e:
-            raise HTTPException(status_code=401, detail=str(e))
-        except ObjectNotFoundException:
-            raise HTTPException(status_code=404, detail="Object not found")
-        except ObjectAlreadyDeletedException:
-            raise HTTPException(status_code=409, detail="Object is already deleted")
-        except PermissionDeniedException:
-            raise HTTPException(status_code=403, detail="Permission denied")
-        except Exception:
-            _log.exception("Unexpected error in delete_object")
-            raise HTTPException(status_code=500, detail="Internal server error")
+        claims = await self._jwt.verify(_require_token(authorization))
+        command = DeleteObjectCommand(
+            requester_identity_id=claims.identity_id,
+            requester_subject_type=claims.subject_type,
+            requester_name=claims.name,
+            object_id=_parse_object_id(object_id),
+        )
+        await self._delete.execute(command)
 
     @post("/{object_id}/archive", response_model=ObjectStatusResponse, summary="Archive an object")
     async def archive_object(
@@ -206,31 +162,17 @@ class ObjectRestController:
         object_id: str,
         authorization: str | None = Header(default=None),
     ) -> ObjectStatusResponse:
-        try:
-            claims = await self._jwt.verify(_require_token(authorization))
-            oid = _parse_object_id(object_id)
-            await self._archive.execute(
-                ArchiveObjectCommand(
-                    requester_identity_id=claims.identity_id,
-                    requester_subject_type=claims.subject_type,
-                    requester_name=claims.name,
-                    object_id=oid,
-                )
+        claims = await self._jwt.verify(_require_token(authorization))
+        oid = _parse_object_id(object_id)
+        await self._archive.execute(
+            ArchiveObjectCommand(
+                requester_identity_id=claims.identity_id,
+                requester_subject_type=claims.subject_type,
+                requester_name=claims.name,
+                object_id=oid,
             )
-            return self._mapper.to_archive_response(oid)
-        except HTTPException:
-            raise
-        except InvalidTokenException as e:
-            raise HTTPException(status_code=401, detail=str(e))
-        except ObjectNotFoundException:
-            raise HTTPException(status_code=404, detail="Object not found")
-        except InvalidObjectStateException as e:
-            raise HTTPException(status_code=409, detail=str(e))
-        except PermissionDeniedException:
-            raise HTTPException(status_code=403, detail="Permission denied")
-        except Exception:
-            _log.exception("Unexpected error in archive_object")
-            raise HTTPException(status_code=500, detail="Internal server error")
+        )
+        return self._mapper.to_archive_response(oid)
 
     @post("/{object_id}/restore", response_model=ObjectStatusResponse, summary="Restore an archived or deleted object")
     async def restore_object(
@@ -238,28 +180,14 @@ class ObjectRestController:
         object_id: str,
         authorization: str | None = Header(default=None),
     ) -> ObjectStatusResponse:
-        try:
-            claims = await self._jwt.verify(_require_token(authorization))
-            oid = _parse_object_id(object_id)
-            await self._restore.execute(
-                RestoreObjectCommand(
-                    requester_identity_id=claims.identity_id,
-                    requester_subject_type=claims.subject_type,
-                    requester_name=claims.name,
-                    object_id=oid,
-                )
+        claims = await self._jwt.verify(_require_token(authorization))
+        oid = _parse_object_id(object_id)
+        await self._restore.execute(
+            RestoreObjectCommand(
+                requester_identity_id=claims.identity_id,
+                requester_subject_type=claims.subject_type,
+                requester_name=claims.name,
+                object_id=oid,
             )
-            return self._mapper.to_restore_response(oid)
-        except HTTPException:
-            raise
-        except InvalidTokenException as e:
-            raise HTTPException(status_code=401, detail=str(e))
-        except ObjectNotFoundException:
-            raise HTTPException(status_code=404, detail="Object not found")
-        except InvalidObjectStateException as e:
-            raise HTTPException(status_code=409, detail=str(e))
-        except PermissionDeniedException:
-            raise HTTPException(status_code=403, detail="Permission denied")
-        except Exception:
-            _log.exception("Unexpected error in restore_object")
-            raise HTTPException(status_code=500, detail="Internal server error")
+        )
+        return self._mapper.to_restore_response(oid)

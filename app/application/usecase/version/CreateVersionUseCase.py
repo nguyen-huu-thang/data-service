@@ -13,8 +13,7 @@ from app.application.port.outbound.version.LoadVersionPort import LoadVersionPor
 from app.application.port.outbound.version.SaveVersionPort import SaveVersionPort
 from app.application.service.audit.AuditService import AuditService
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.exception.InvalidObjectStateException import InvalidObjectStateException
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
+from app.common.exception.AppException import PublicError
 from app.common.util.IdGenerator import generate_id
 from app.domain.object.model.ObjectVersion import ObjectVersion
 from app.domain.object.valueobject.ContentHash import ContentHash
@@ -50,7 +49,7 @@ class CreateVersionUseCase:
         obj = await self._load.find_by_id(command.object_id)
 
         if obj is None or obj.status == ObjectStatus.PURGED:
-            raise ObjectNotFoundException(command.object_id)
+            raise PublicError("E067000")
 
         # Authorize before validating lifecycle state so unauthorized callers
         # cannot probe whether the object is ACTIVE/ARCHIVED/etc.
@@ -59,7 +58,7 @@ class CreateVersionUseCase:
         )
 
         if obj.status != ObjectStatus.ACTIVE:
-            raise InvalidObjectStateException(obj.status.value, ObjectStatus.ACTIVE.value)
+            raise PublicError("E067002")
 
         content_hash = hashlib.sha256(command.data).hexdigest()
         content_size = len(command.data)
@@ -82,11 +81,9 @@ class CreateVersionUseCase:
                 # "latest" version and collide on UNIQUE(object_id, version_number).
                 locked = await self._load.find_by_id_for_update(command.object_id)
                 if locked is None or locked.status == ObjectStatus.PURGED:
-                    raise ObjectNotFoundException(command.object_id)
+                    raise PublicError("E067000")
                 if locked.status != ObjectStatus.ACTIVE:
-                    raise InvalidObjectStateException(
-                        locked.status.value, ObjectStatus.ACTIVE.value
-                    )
+                    raise PublicError("E067002")
 
                 # Determine next version number under the lock.
                 latest = await self._load_version.find_latest_by_object(command.object_id)
@@ -108,7 +105,11 @@ class CreateVersionUseCase:
                 await self._save_version.save(version)
                 updated_obj = locked.update_version(version_id, now)
                 await self._save.update(updated_obj)
-        except (ObjectNotFoundException, InvalidObjectStateException):
+        except PublicError:
+            # Business validation errors (object not found / wrong state) propagate
+            # without the orphaned-blob log below — they are not infrastructure faults.
+            # Lỗi nghiệp vụ (object không tồn tại / sai trạng thái) propagate mà không
+            # ghi log orphaned-blob bên dưới - chúng không phải lỗi hạ tầng.
             raise
         except Exception:
             _log.error(

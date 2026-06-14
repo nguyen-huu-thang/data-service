@@ -1,5 +1,3 @@
-import logging
-
 import grpc
 
 from app.api.grpc.generated.permission_service_pb2_grpc import PermissionServiceServicer
@@ -8,12 +6,14 @@ from app.application.dto.permission.RevokeObjectPermissionCommand import RevokeO
 from app.application.service.authorization.JwtVerificationService import JwtVerificationService
 from app.application.usecase.permission.GrantObjectPermissionUseCase import GrantObjectPermissionUseCase
 from app.application.usecase.permission.RevokeObjectPermissionUseCase import RevokeObjectPermissionUseCase
-from app.common.exception.InvalidTokenException import InvalidTokenException
-from app.common.exception.ObjectNotFoundException import ObjectNotFoundException
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
+from app.common.exception.AppException import PublicError
 from app.domain.permission.role.Role import Role
 
-_log = logging.getLogger(__name__)
+# Exceptions raised here propagate to AppExceptionInterceptor
+# (app/api/grpc/interceptor/AppExceptionInterceptor.py), which redacts per the
+# GRPC_INTERNAL channel and aborts with xime-error metadata. No per-method catch.
+# Exception ném ở đây propagate tới AppExceptionInterceptor để che theo kênh
+# GRPC_INTERNAL và abort kèm metadata xime-error. Không bắt lỗi theo từng method.
 
 
 class PermissionGrpcHandler(PermissionServiceServicer):
@@ -32,72 +32,55 @@ class PermissionGrpcHandler(PermissionServiceServicer):
         metadata = dict(context.invocation_metadata())
         auth = metadata.get("authorization", "")
         if not auth.lower().startswith("bearer "):
-            raise InvalidTokenException("Missing or invalid Authorization header")
+            raise PublicError("E007002", "Missing or invalid Authorization header")
         return auth[7:]
 
-    async def GrantPermission(self, request, context):
+    @staticmethod
+    def _parse_role(raw: str) -> Role:
+        # A bad role value is client input — surface as a public 400.
+        # Giá trị role sai là input của client - trả 400 public.
         try:
-            claims = await self._jwt.verify(self._extract_token(context))
-            command = GrantObjectPermissionCommand(
-                requester_identity_id=claims.identity_id,
-                requester_subject_type=claims.subject_type,
-                requester_name=claims.name,
-                object_id=request.object_id,
-                target_identity_id=request.target_identity_id,
-                target_subject_type=request.target_subject_type or "HUMAN",
-                role=Role(request.role),
-            )
-            await self._grant.execute(command)
-            return self._make_grant_response()
-        except InvalidTokenException as e:
-            await context.abort(grpc.StatusCode.UNAUTHENTICATED, str(e))
-        except ObjectNotFoundException:
-            await context.abort(grpc.StatusCode.NOT_FOUND, "Object not found")
-        except PermissionDeniedException:
-            await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Permission denied")
+            return Role(raw)
         except ValueError as e:
-            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
-        except Exception:
-            _log.exception("Unexpected error in GrantPermission")
-            await context.abort(grpc.StatusCode.INTERNAL, "Internal server error")
+            raise PublicError("E007001", str(e))
+
+    async def GrantPermission(self, request, context):
+        claims = await self._jwt.verify(self._extract_token(context))
+        command = GrantObjectPermissionCommand(
+            requester_identity_id=claims.identity_id,
+            requester_subject_type=claims.subject_type,
+            requester_name=claims.name,
+            object_id=request.object_id,
+            target_identity_id=request.target_identity_id,
+            target_subject_type=request.target_subject_type or "HUMAN",
+            role=self._parse_role(request.role),
+        )
+        await self._grant.execute(command)
+        return self._make_grant_response()
 
     async def RevokePermission(self, request, context):
-        try:
-            claims = await self._jwt.verify(self._extract_token(context))
-            command = RevokeObjectPermissionCommand(
-                requester_identity_id=claims.identity_id,
-                requester_subject_type=claims.subject_type,
-                requester_name=claims.name,
-                object_id=request.object_id,
-                target_identity_id=request.target_identity_id,
-            )
-            await self._revoke.execute(command)
-            return self._make_revoke_response()
-        except InvalidTokenException as e:
-            await context.abort(grpc.StatusCode.UNAUTHENTICATED, str(e))
-        except ObjectNotFoundException:
-            await context.abort(grpc.StatusCode.NOT_FOUND, "Object not found")
-        except PermissionDeniedException:
-            await context.abort(grpc.StatusCode.PERMISSION_DENIED, "Permission denied")
-        except Exception:
-            _log.exception("Unexpected error in RevokePermission")
-            await context.abort(grpc.StatusCode.INTERNAL, "Internal server error")
+        claims = await self._jwt.verify(self._extract_token(context))
+        command = RevokeObjectPermissionCommand(
+            requester_identity_id=claims.identity_id,
+            requester_subject_type=claims.subject_type,
+            requester_name=claims.name,
+            object_id=request.object_id,
+            target_identity_id=request.target_identity_id,
+        )
+        await self._revoke.execute(command)
+        return self._make_revoke_response()
 
     async def ListPermissions(self, request, context):
         await context.abort(grpc.StatusCode.UNIMPLEMENTED, "ListPermissions not yet implemented")
 
     @staticmethod
     def _make_grant_response():
-        try:
-            from app.api.grpc.generated.permission_service_pb2 import GrantPermissionResponse
-            return GrantPermissionResponse(success=True)
-        except Exception:
-            return None
+        from app.api.grpc.generated.permission_service_pb2 import GrantPermissionResponse
+
+        return GrantPermissionResponse(success=True)
 
     @staticmethod
     def _make_revoke_response():
-        try:
-            from app.api.grpc.generated.permission_service_pb2 import RevokePermissionResponse
-            return RevokePermissionResponse(success=True)
-        except Exception:
-            return None
+        from app.api.grpc.generated.permission_service_pb2 import RevokePermissionResponse
+
+        return RevokePermissionResponse(success=True)

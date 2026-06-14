@@ -1,9 +1,23 @@
-from xime.adapters.web import configure_controllers
+from xime.adapters.web import configure_controllers, configure_exception_handlers
 from xime.adapters.web.openapi import JwtBearer, OpenApiConfig, configure_openapi
+
+from app.api.rest.error_handler import app_exception_handler, unhandled_exception_handler
+from app.common.exception.AppException import AppException
 
 configure_controllers(
     "app.api.rest.external.object",
     "app.api.rest.external.version",
+)
+
+# Platform error standard: AppException renders {errorKey, code, message} with
+# per-channel redaction; the catch-all guarantees no raw exception ever leaks.
+# Chuẩn mã lỗi platform: AppException trả {errorKey, code, message} có che theo
+# kênh; handler catch-all đảm bảo không exception thô nào lọt ra ngoài.
+configure_exception_handlers(
+    {
+        AppException: app_exception_handler,
+        Exception: unhandled_exception_handler,
+    }
 )
 
 configure_openapi(

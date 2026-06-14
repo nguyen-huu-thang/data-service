@@ -1,7 +1,7 @@
 from app.application.dto.object.ListObjectsQuery import ListObjectsQuery
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.service.authorization.AuthorizationService import AuthorizationService
-from app.common.exception.PermissionDeniedException import PermissionDeniedException
+from app.common.exception.AppException import PublicError
 from app.domain.object.model.DataObject import DataObject
 from app.domain.permission.capability.AclCapability import AclCapability
 
@@ -41,7 +41,7 @@ class ListObjectsUseCase:
         # Future versions may allow administrators with
         # DATA_READ_ANY privileges to bypass this restriction.
         if query.requester_identity_id != query.owner_identity_id:
-            raise PermissionDeniedException()
+            raise PublicError("E007004")
 
         # Load objects belonging to the requested owner within the
         # specified tenant boundary.
