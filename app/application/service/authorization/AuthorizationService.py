@@ -2,56 +2,55 @@ from app.application.port.outbound.permission.LoadPermissionPort import LoadPerm
 from app.application.port.outbound.permission.LoadSubjectPermissionPort import LoadSubjectPermissionPort
 from app.domain.object.model.DataObject import DataObject
 from app.domain.permission.capability.AclCapability import AclCapability
-from app.domain.permission.capability.ObjectCapability import ObjectCapability
+from app.domain.permission.policy.AccessPolicy import AccessPolicy
+from app.domain.sharedkernel.model.Id import Id
 from app.common.exception.AppException import PublicError
-
-# Capabilities that PUBLIC objects expose without any ACL check
-_PUBLIC_FREE_CAPS = frozenset({AclCapability.READ, AclCapability.DOWNLOAD})
-
-# ACL capability → system capability required to bypass per-object ACL
-_SYSTEM_BYPASS: dict[AclCapability, ObjectCapability] = {
-    AclCapability.READ: ObjectCapability.DATA_READ_ANY,
-    AclCapability.WRITE: ObjectCapability.DATA_WRITE_ANY,
-    AclCapability.DELETE: ObjectCapability.DATA_DELETE_ANY,
-    AclCapability.SHARE: ObjectCapability.DATA_SHARE_ANY,
-    AclCapability.DOWNLOAD: ObjectCapability.DATA_READ_ANY,
-}
 
 
 class AuthorizationService:
+    """
+    Orchestrates authorization: loads ACL data via ports, delegates every
+    decision to the pure domain AccessPolicy.
+
+    Điều phối phân quyền: nạp dữ liệu ACL qua port, ủy quyền mọi quyết định cho
+    AccessPolicy (domain thuần).
+    """
+
     def __init__(
         self,
         load_permission_port: LoadPermissionPort,
         load_subject_permission_port: LoadSubjectPermissionPort,
+        access_policy: AccessPolicy,
     ) -> None:
         self._load_permission = load_permission_port
         self._load_subject_permission = load_subject_permission_port
+        self._policy = access_policy
 
     async def require_capability(
         self,
-        requester_identity_id: bytes,
+        requester_identity_id: Id,
         obj: DataObject,
         capability: AclCapability,
     ) -> None:
-        # Checks are ordered cheapest-first: in-memory comparisons that cover
-        # the common cases run before any database lookup, so the typical
-        # "owner accesses their own object" path never touches the DB.
+        # Checks are ordered cheapest-first: pure in-memory rules that cover the
+        # common cases run before any database lookup, so the typical "owner
+        # accesses their own object" path never touches the DB.
 
         # 1. Owner has full control over their own object
-        if obj.owner_identity_id == requester_identity_id:
+        if self._policy.is_owner(obj, requester_identity_id):
             return
 
         # 2. PUBLIC object — READ / DOWNLOAD bypass ACL entirely
-        if obj.is_public() and capability in _PUBLIC_FREE_CAPS:
+        if self._policy.public_allows(obj, capability):
             return
 
         # 3. System Permission — DATA_X_ANY bypasses all per-object checks
-        system_cap = _SYSTEM_BYPASS.get(capability)
+        system_cap = self._policy.required_system_capability(capability)
         if system_cap is not None:
             subject_permissions = await self._load_subject_permission.find_by_subject(
                 requester_identity_id
             )
-            if any(sp.permission == system_cap for sp in subject_permissions):
+            if self._policy.has_system_capability(subject_permissions, system_cap):
                 return
 
         # 4. Load ACL entry for this (subject, object) pair
@@ -59,5 +58,5 @@ class AuthorizationService:
             subject_identity_id=requester_identity_id,
             object_id=obj.object_id,
         )
-        if permission is None or not permission.has_capability(capability):
+        if not self._policy.acl_allows(permission, capability):
             raise PublicError("E007004")

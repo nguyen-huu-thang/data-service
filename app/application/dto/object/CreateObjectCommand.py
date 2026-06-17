@@ -1,12 +1,14 @@
 from dataclasses import dataclass
 
+from app.domain.sharedkernel.model.Id import Id
+
 from app.domain.object.valueobject.ObjectType import ObjectType
 from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
 
 
 @dataclass(frozen=True)
 class CreateObjectCommand:
-    requester_identity_id: bytes
+    requester_identity_id: Id
     requester_subject_type: str
     requester_name: str
     object_type: ObjectType

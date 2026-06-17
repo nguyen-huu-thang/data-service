@@ -3,6 +3,7 @@ from datetime import datetime
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.object.valueobject.ObjectType import ObjectType
 from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
+from app.domain.sharedkernel.model.Id import Id
 
 # Valid state transitions: source -> allowed targets
 _ALLOWED_TRANSITIONS: dict[ObjectStatus, frozenset[ObjectStatus]] = {
@@ -17,15 +18,15 @@ class DataObject:
 
     def __init__(
         self,
-        object_id: bytes,
+        object_id: Id,
         tenant_id: str | None,
         shard_id: str,
-        owner_identity_id: bytes,
+        owner_identity_id: Id,
         owner_subject_type: str,
         object_type: ObjectType,
         visibility: ObjectVisibility,
         status: ObjectStatus,
-        current_version_id: bytes | None,
+        current_version_id: Id | None,
         storage_provider: str,
         storage_pointer: str,
         metadata: dict | None,
@@ -33,6 +34,19 @@ class DataObject:
         created_at: datetime,
         updated_at: datetime,
     ) -> None:
+        # Invariants — a DataObject must always be in a valid state once built.
+        # Bất biến — DataObject luôn ở trạng thái hợp lệ ngay khi khởi tạo.
+        if object_id is None:
+            raise ValueError("object_id is required")
+        if owner_identity_id is None:
+            raise ValueError("owner_identity_id is required")
+        if not shard_id:
+            raise ValueError("shard_id is required")
+        if not storage_pointer:
+            raise ValueError("storage_pointer is required")
+        if permission_version < 1:
+            raise ValueError("permission_version must be >= 1")
+
         self._object_id = object_id
         self._tenant_id = tenant_id
         self._shard_id = shard_id
@@ -61,7 +75,7 @@ class DataObject:
     # =========================
 
     @property
-    def object_id(self) -> bytes:
+    def object_id(self) -> Id:
         return self._object_id
 
     @property
@@ -73,7 +87,7 @@ class DataObject:
         return self._shard_id
 
     @property
-    def owner_identity_id(self) -> bytes:
+    def owner_identity_id(self) -> Id:
         return self._owner_identity_id
 
     @property
@@ -93,7 +107,7 @@ class DataObject:
         return self._status
 
     @property
-    def current_version_id(self) -> bytes | None:
+    def current_version_id(self) -> Id | None:
         return self._current_version_id
 
     @property
@@ -149,10 +163,10 @@ class DataObject:
     def purge(self, now: datetime) -> 'DataObject':
         return self._copy(status=ObjectStatus.PURGED, updated_at=now)
 
-    def update_current_version(self, version_id: bytes, now: datetime) -> 'DataObject':
+    def update_current_version(self, version_id: Id, now: datetime) -> 'DataObject':
         return self._copy(current_version_id=version_id, updated_at=now)
 
-    def update_version(self, version_id: bytes, now: datetime) -> 'DataObject':
+    def update_version(self, version_id: Id, now: datetime) -> 'DataObject':
         return self.update_current_version(version_id, now)
 
     def change_visibility(self, visibility: ObjectVisibility, now: datetime) -> 'DataObject':

@@ -11,8 +11,9 @@ from app.application.port.outbound.permission.SavePermissionPort import SavePerm
 from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 from app.application.port.outbound.version.SaveVersionPort import SaveVersionPort
 from app.application.service.audit.AuditService import AuditService
+from app.domain.audit.valueobject.AuditAction import AuditAction
 from app.application.service.routing.ShardRoutingService import ShardRoutingService
-from app.common.util.IdGenerator import generate_id
+from app.domain.sharedkernel.factory.IdFactory import IdFactory
 from app.domain.object.model.DataObject import DataObject
 from app.domain.object.model.ObjectVersion import ObjectVersion
 from app.domain.object.valueobject.ContentHash import ContentHash
@@ -65,9 +66,9 @@ class CreateObjectUseCase:
 
         # Generate stable identifiers up front so they can be reused
         # across blob storage, metadata records, permissions and retries.
-        object_id = generate_id()
-        version_id = generate_id()
-        permission_id = generate_id()
+        object_id = IdFactory.generate()
+        version_id = IdFactory.generate()
+        permission_id = IdFactory.generate()
 
         # Route object ownership to a shard.
         #
@@ -82,8 +83,8 @@ class CreateObjectUseCase:
         # A retry should produce the same pointer so duplicate uploads
         # do not create additional objects in storage.
         pointer = await self._blob.generate_pointer(
-            command.requester_identity_id,
-            object_id,
+            command.requester_identity_id.to_bytes(),
+            object_id.to_bytes(),
             command.filename,
         )
 
@@ -173,6 +174,17 @@ class CreateObjectUseCase:
                 await self._save_version.save(version)
                 await self._save_permission.save(permission)
 
+                # Audit is written inside the same transaction so the audit
+                # trail is atomic with the object it describes.
+                # Ghi audit trong cùng transaction để vết audit nguyên tử với object.
+                await self._audit.record(
+                    object_id,
+                    command.requester_identity_id,
+                    command.requester_subject_type,
+                    command.requester_name,
+                    AuditAction.CREATE,
+                )
+
         except Exception:
             # Database transaction failed after blob upload.
             #
@@ -182,21 +194,10 @@ class CreateObjectUseCase:
             _log.warning(
                 "DB failed after blob upload — orphaned blob needs cleanup: "
                 "object_id=%s pointer=%s",
-                object_id.hex(),
+                object_id.to_bytes().hex(),
                 pointer,
             )
             raise
-
-        # Audit logging is separated from the main transaction.
-        #
-        # Object creation is already committed at this point.
-        await self._audit.record(
-            object_id,
-            command.requester_identity_id,
-            command.requester_subject_type,
-            command.requester_name,
-            "CREATE",
-        )
 
         return CreateObjectResult(
             object_id=object_id,

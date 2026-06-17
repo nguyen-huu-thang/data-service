@@ -1,12 +1,7 @@
 from typing import Protocol
 
+from app.domain.audit.model.ObjectAudit import ObjectAudit
+
 
 class SaveAuditPort(Protocol):
-    async def record(
-        self,
-        object_id: bytes,
-        actor_identity_id: bytes,
-        actor_subject_type: str,
-        actor_name: str,
-        action: str,
-    ) -> None: ...
+    async def save(self, audit: ObjectAudit) -> None: ...

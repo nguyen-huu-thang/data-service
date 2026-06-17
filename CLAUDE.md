@@ -51,6 +51,25 @@ python app/main.py
     GIỮ NGUYÊN viết tay (bootstrap chicken-egg, đúng thiết kế).
   - data-service giờ là service mẫu cho notification-service migrate theo.
 
+- **Dọn dẹp + làm giàu domain (Phase 0-8) - ĐÃ XONG (2026-06-17).** Theo
+  [`.claude/docs/ke-hoach-don-dep-domain.md`](.claude/docs/ke-hoach-don-dep-domain.md).
+  Đã thực hiện:
+  - **ID triệt để:** domain/application dùng kiểu `Id` (value object), DB dùng `bytes`
+    (mapper chuyển), REST+JWT dùng Base62 (`IdService.from_string/to_string`), gRPC
+    wire dùng `bytes`. Xác nhận với token thật từ identity-service: `sub` 33 ký tự
+    Base62 -> 24-byte `Id` sạch.
+  - Xóa code chết: `integration/identity/`, `common/constants/`, flat repo/port cũ
+    (Object/Version/Permission), `common/util/IdGenerator`.
+  - Tổ chức lại: Subject repos/ports vào subfolder; share/tag/reference vào subfolder.
+  - Làm giàu domain: invariant constructor (`DataObject`, `ObjectVersion`); immutable
+    state-change (`SubjectPermission`, `SubjectInfo`); tách `AccessPolicy` (domain thuần)
+    khỏi `AuthorizationService`; tách `ShardRouter` (domain thuần) khỏi `ShardRoutingService`.
+  - Audit hoàn chỉnh: `object_id` nullable, chiều đọc (`LoadAuditPort`), ghi trong tx,
+    endpoint REST `GET /objects/{id}/audit`, `AuditAction` enum.
+  - share/tag/reference: implement đầy đủ usecase + REST API + test.
+  - Dọn DI (`config/dependency.py`): gỡ flat-parent scan, nhóm binding theo cụm.
+  - Kết quả: 240 test xanh, `python -m app.main` khởi động trọn vẹn.
+
 ---
 
 ## Tài liệu trong .claude/
@@ -72,7 +91,8 @@ python app/main.py
 | [`.claude/docs/lua-chon-cong-nghe.md`](.claude/docs/lua-chon-cong-nghe.md) | Chiến lược công nghệ — 2 giai đoạn: Python thuần → Python + xime-cryptod (C/C++) |
 | [`.claude/docs/lua-chon-python.md`](.claude/docs/lua-chon-python.md) | Lý do chọn Python + Xime Framework — I/O bound, developer productivity, so sánh Go/Java |
 | [`.claude/docs/ra-soat-application-layer.md`](.claude/docs/ra-soat-application-layer.md) | Rà soát application layer — use case còn thiếu, service có thể phát sinh |
-| [`.claude/docs/ke-hoach-sua-code.md`](.claude/docs/ke-hoach-sua-code.md) | **Kế hoạch sửa code** — 8 phase đồng bộ code với thiết kế mới, checklist đầy đủ |
+| [`.claude/docs/ke-hoach-don-dep-domain.md`](.claude/docs/ke-hoach-don-dep-domain.md) | **Dọn dẹp + làm giàu domain (HOÀN TẤT 2026-06-17)** — Phase 0-8: ID triệt để, xóa code chết, subfolder, domain thuần, audit đầy đủ, share/tag/reference |
+| [`.claude/docs/ke-hoach-sua-code.md`](.claude/docs/ke-hoach-sua-code.md) | **Kế hoạch sửa code** — 8 phase đồng bộ code với thiết kế mới (đã hoàn tất, supersede bởi ke-hoach-don-dep-domain) |
 | [`.claude/docs/ke-hoach-phase-14.md`](.claude/docs/ke-hoach-phase-14.md) | **Phase 14 — Trust Integration** — mTLS, bootstrap cert, cert rotation, key persistence, schedulers |
 
 ### Rules — Quy tắc kiến trúc & Code
@@ -93,6 +113,14 @@ Mọi dữ liệu đều là `DataObject` (image, video, document, AI artifact, 
 
 Các trường quan trọng: `object_id`, `owner_identity_id`, `tenant_id`, `shard_id` (immutable), `storage_pointer` (không lưu binary trong DB).
 
+**Kiểu ID:** tất cả trường `*_id` trong domain/application dùng kiểu `Id` (value object 24-byte KSUID - `app/domain/sharedkernel/model/Id.py`). Biên chuyển đổi:
+
+- DB: `Id.to_bytes()` / `Id(bytes_value)` trong persistence mapper
+- REST + JWT `sub`: Base62 string qua `IdService.from_string(s)` / `IdService.to_string(id_)`
+- gRPC wire: `bytes` (proto), bọc `Id(request.field)` khi vào, `.to_bytes()` khi ra
+
+**Domain thuần:** `AccessPolicy` (`domain/permission/policy/`) evaluate capability không cần I/O; `ShardRouter` (`domain/sharedkernel/routing/`) route tất định theo 4 byte đầu identity_id. Cả hai đăng ký tay qua `dependency.register()`.
+
 ### Immutable Sharding
 
 ```text
@@ -102,7 +130,7 @@ owner identity_id → hash → partition → data shard (cố định mãi mãi)
 ### Authorization — Capability-Based
 
 ```text
-JWT → identity_id → load ACL → evaluate capability → ALLOW / DENY
+JWT → identity_id → load ACL → AccessPolicy.evaluate() → ALLOW / DENY
 ```
 
 Capability: READ, WRITE, DELETE, SHARE, DOWNLOAD. Role: OWNER, EDITOR, VIEWER.

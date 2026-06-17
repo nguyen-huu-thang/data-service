@@ -2,6 +2,7 @@ from app.domain.object.model.DataObject import DataObject
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.object.valueobject.ObjectType import ObjectType
 from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
+from app.domain.sharedkernel.model.Id import Id
 
 from app.infrastructure.persistence.entity.DataObjectEntity import DataObjectEntity
 
@@ -32,15 +33,15 @@ class DataObjectMapper:
         DataObjectMapper._require_non_null(entity.updated_at, "updated_at")
 
         return DataObject(
-            object_id=entity.object_id,
+            object_id=Id(entity.object_id),
             tenant_id=entity.tenant_id,
             shard_id=entity.shard_id,
-            owner_identity_id=entity.owner_identity_id,
+            owner_identity_id=Id(entity.owner_identity_id),
             owner_subject_type=entity.owner_subject_type,
             object_type=ObjectType(entity.object_type),
             visibility=ObjectVisibility(entity.visibility),
             status=ObjectStatus(entity.status),
-            current_version_id=entity.current_version_id,
+            current_version_id=Id(entity.current_version_id) if entity.current_version_id else None,
             storage_provider=entity.storage_provider,
             storage_pointer=entity.storage_pointer,
             metadata=entity.metadata_json,
@@ -61,15 +62,17 @@ class DataObjectMapper:
 
         entity = DataObjectEntity()
 
-        entity.object_id = model.object_id
+        entity.object_id = model.object_id.to_bytes()
         entity.tenant_id = model.tenant_id
         entity.shard_id = model.shard_id
-        entity.owner_identity_id = model.owner_identity_id
+        entity.owner_identity_id = model.owner_identity_id.to_bytes()
         entity.owner_subject_type = model.owner_subject_type
         entity.object_type = model.object_type.value
         entity.visibility = model.visibility.value
         entity.status = model.status.value
-        entity.current_version_id = model.current_version_id
+        entity.current_version_id = (
+            model.current_version_id.to_bytes() if model.current_version_id else None
+        )
         entity.storage_provider = model.storage_provider
         entity.storage_pointer = model.storage_pointer
         entity.metadata_json = model.metadata

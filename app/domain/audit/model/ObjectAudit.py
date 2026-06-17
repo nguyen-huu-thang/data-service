@@ -1,15 +1,16 @@
 from datetime import datetime
 
 from app.domain.audit.valueobject.AuditAction import AuditAction
+from app.domain.sharedkernel.model.Id import Id
 
 
 class ObjectAudit:
 
     def __init__(
         self,
-        audit_id: bytes,
-        object_id: bytes,
-        actor_identity_id: bytes,
+        audit_id: Id,
+        object_id: Id | None,
+        actor_identity_id: Id,
         actor_subject_type: str,
         actor_name: str,
         action: AuditAction,
@@ -28,15 +29,15 @@ class ObjectAudit:
         self._created_at = created_at
 
     @property
-    def audit_id(self) -> bytes:
+    def audit_id(self) -> Id:
         return self._audit_id
 
     @property
-    def object_id(self) -> bytes:
+    def object_id(self) -> Id | None:
         return self._object_id
 
     @property
-    def actor_identity_id(self) -> bytes:
+    def actor_identity_id(self) -> Id:
         return self._actor_identity_id
 
     @property

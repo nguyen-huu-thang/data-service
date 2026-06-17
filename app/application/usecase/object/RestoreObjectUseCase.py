@@ -6,6 +6,7 @@ from app.application.dto.object.RestoreObjectCommand import RestoreObjectCommand
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.application.service.audit.AuditService import AuditService
+from app.domain.audit.valueobject.AuditAction import AuditAction
 from app.common.exception.AppException import PublicError
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 
@@ -85,9 +86,9 @@ class RestoreObjectUseCase:
 
             # Record restoration activity.
             await self._audit.record(
-                obj.object_id,
+                command.object_id,
                 command.requester_identity_id,
                 command.requester_subject_type,
                 command.requester_name,
-                "RESTORE",
+                AuditAction.RESTORE,
             )

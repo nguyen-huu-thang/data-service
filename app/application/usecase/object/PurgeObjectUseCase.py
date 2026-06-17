@@ -9,6 +9,7 @@ from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.service.audit.AuditService import AuditService
+from app.domain.audit.valueobject.AuditAction import AuditAction
 from app.common.exception.AppException import PublicError
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 
@@ -107,7 +108,7 @@ class PurgeObjectUseCase:
                 except Exception:
                     _log.warning(
                         "Failed to delete blob for version %s — pointer: %s",
-                        version.version_id.hex(),
+                        version.version_id.to_bytes().hex(),
                         version.storage_pointer,
                     )
 
@@ -119,9 +120,9 @@ class PurgeObjectUseCase:
 
             # Record irreversible purge action.
             await self._audit.record(
-                obj.object_id,
+                command.object_id,
                 command.requester_identity_id,
                 command.requester_subject_type,
                 command.requester_name,
-                "PURGE",
+                AuditAction.PURGE,
             )

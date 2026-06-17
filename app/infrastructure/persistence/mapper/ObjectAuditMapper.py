@@ -4,6 +4,7 @@ from app.domain.audit.model.ObjectAudit import (
 from app.domain.audit.valueobject.AuditAction import (
     AuditAction,
 )
+from app.domain.sharedkernel.model.Id import Id
 
 from app.infrastructure.persistence.entity.ObjectAuditEntity import (
     ObjectAuditEntity,
@@ -31,10 +32,8 @@ class ObjectAuditMapper:
             "audit_id",
         )
 
-        ObjectAuditMapper._require_non_null(
-            entity.object_id,
-            "object_id",
-        )
+        # object_id is nullable (subject-level actions) — no non-null check.
+        # object_id cho phép null (hành động cấp-subject) — không kiểm tra non-null.
 
         ObjectAuditMapper._require_non_null(
             entity.actor_identity_id,
@@ -62,9 +61,9 @@ class ObjectAuditMapper:
         )
 
         return ObjectAudit(
-            audit_id=entity.audit_id,
-            object_id=entity.object_id,
-            actor_identity_id=entity.actor_identity_id,
+            audit_id=Id(entity.audit_id),
+            object_id=Id(entity.object_id) if entity.object_id is not None else None,
+            actor_identity_id=Id(entity.actor_identity_id),
             actor_subject_type=entity.actor_subject_type,
             actor_name=entity.actor_name,
             action=AuditAction(
@@ -90,15 +89,17 @@ class ObjectAuditMapper:
         entity = ObjectAuditEntity()
 
         entity.audit_id = (
-            model.audit_id
+            model.audit_id.to_bytes()
         )
 
         entity.object_id = (
-            model.object_id
+            model.object_id.to_bytes()
+            if model.object_id is not None
+            else None
         )
 
         entity.actor_identity_id = (
-            model.actor_identity_id
+            model.actor_identity_id.to_bytes()
         )
 
         entity.actor_subject_type = (

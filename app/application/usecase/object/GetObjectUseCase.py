@@ -3,6 +3,7 @@ from xime.core.transaction.manager import TransactionManager
 from app.application.dto.object.GetObjectQuery import GetObjectQuery
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.service.audit.AuditService import AuditService
+from app.domain.audit.valueobject.AuditAction import AuditAction
 from app.application.service.authorization.AuthorizationService import AuthorizationService
 from app.common.exception.AppException import PublicError
 from app.domain.object.model.DataObject import DataObject
@@ -68,11 +69,11 @@ class GetObjectUseCase:
 
             # Record metadata access for auditing and compliance.
             await self._audit.record(
-                obj.object_id,
+                query.object_id,
                 query.requester_identity_id,
                 query.requester_subject_type,
                 query.requester_name,
-                "READ",
+                AuditAction.READ,
             )
 
             return obj

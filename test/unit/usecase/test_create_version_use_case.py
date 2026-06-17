@@ -15,6 +15,7 @@ from test._app_errors import raises_app
 from app.application.dto.version.CreateVersionCommand import CreateVersionCommand
 from app.application.usecase.version.CreateVersionUseCase import CreateVersionUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.sharedkernel.model.Id import Id
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, make_object, make_version, mock_audit, mock_auth, mock_tx
 
 pytestmark = pytest.mark.asyncio
@@ -24,10 +25,10 @@ _DATA = b"new version content"
 
 def _cmd(requester: bytes = OWNER_ID) -> CreateVersionCommand:
     return CreateVersionCommand(
-        requester_identity_id=requester,
+        requester_identity_id=Id(requester),
         requester_subject_type="HUMAN",
         requester_name="test",
-        object_id=OBJECT_ID,
+        object_id=Id(OBJECT_ID),
         filename="file_v2.jpg",
         content_type="image/jpeg",
         data=_DATA,
@@ -70,7 +71,7 @@ def _make_uc(*, obj=None, latest_version=None, auth_allow: bool = True):
 async def test_returns_result_with_24_byte_version_id():
     uc, _, _, _ = _make_uc(obj=make_object(), latest_version=None)
     result = await uc.execute(_cmd())
-    assert len(result.version_id) == 24
+    assert len(result.version_id.to_bytes()) == 24
 
 
 async def test_version_number_starts_at_1_when_no_existing():

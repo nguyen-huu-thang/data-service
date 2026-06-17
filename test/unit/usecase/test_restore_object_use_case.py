@@ -14,6 +14,7 @@ from test._app_errors import raises_app
 from app.application.dto.object.RestoreObjectCommand import RestoreObjectCommand
 from app.application.usecase.object.RestoreObjectUseCase import RestoreObjectUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.sharedkernel.model.Id import Id
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, make_object, mock_audit, mock_tx
 
 pytestmark = pytest.mark.asyncio
@@ -21,10 +22,10 @@ pytestmark = pytest.mark.asyncio
 
 def _cmd(requester: bytes = OWNER_ID) -> RestoreObjectCommand:
     return RestoreObjectCommand(
-        requester_identity_id=requester,
+        requester_identity_id=Id(requester),
         requester_subject_type="HUMAN",
         requester_name="test",
-        object_id=OBJECT_ID,
+        object_id=Id(OBJECT_ID),
     )
 
 
@@ -64,7 +65,7 @@ async def test_records_audit_on_restore():
         audit_service=audit,
     )
     await uc.execute(_cmd())
-    audit.record.assert_called_once_with(OBJECT_ID, OWNER_ID, "HUMAN", "test", "RESTORE")
+    audit.record.assert_called_once_with(Id(OBJECT_ID), Id(OWNER_ID), "HUMAN", "test", "RESTORE")
 
 
 # ── Invalid transitions ───────────────────────────────────────────────────────

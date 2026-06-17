@@ -2,6 +2,7 @@ from datetime import datetime
 
 from app.domain.object.valueobject.ContentHash import ContentHash
 from app.domain.object.valueobject.MimeType import MimeType
+from app.domain.sharedkernel.model.Id import Id
 from app.domain.subject.valueobject.SubjectType import SubjectType
 
 
@@ -9,17 +10,28 @@ class ObjectVersion:
 
     def __init__(
         self,
-        version_id: bytes,
-        object_id: bytes,
+        version_id: Id,
+        object_id: Id,
         version_number: int,
         storage_pointer: str,
         content_hash: ContentHash,
         content_size: int,
         mime_type: MimeType,
-        created_by_identity_id: bytes,
+        created_by_identity_id: Id,
         created_by_subject_type: SubjectType,
         created_at: datetime,
     ) -> None:
+        # Invariants — a version always has a positive number and non-negative size.
+        # Bất biến — version luôn có số thứ tự dương và kích thước không âm.
+        if version_id is None:
+            raise ValueError("version_id is required")
+        if object_id is None:
+            raise ValueError("object_id is required")
+        if version_number < 1:
+            raise ValueError("version_number must be >= 1")
+        if content_size < 0:
+            raise ValueError("content_size must be >= 0")
+
         self._version_id = version_id
 
         self._object_id = object_id
@@ -38,11 +50,11 @@ class ObjectVersion:
         self._created_at = created_at
 
     @property
-    def version_id(self) -> bytes:
+    def version_id(self) -> Id:
         return self._version_id
 
     @property
-    def object_id(self) -> bytes:
+    def object_id(self) -> Id:
         return self._object_id
 
     @property
@@ -66,7 +78,7 @@ class ObjectVersion:
         return self._mime_type
 
     @property
-    def created_by_identity_id(self) -> bytes:
+    def created_by_identity_id(self) -> Id:
         return self._created_by_identity_id
 
     @property
@@ -76,3 +88,12 @@ class ObjectVersion:
     @property
     def created_at(self) -> datetime:
         return self._created_at
+
+    # =========================
+    # Query Methods
+    # =========================
+
+    def is_initial(self) -> bool:
+        # True for the first version created together with the object.
+        # Đúng với version đầu tiên được tạo cùng object.
+        return self._version_number == 1

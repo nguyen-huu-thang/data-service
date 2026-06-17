@@ -12,9 +12,10 @@ from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePor
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.port.outbound.version.SaveVersionPort import SaveVersionPort
 from app.application.service.audit.AuditService import AuditService
+from app.domain.audit.valueobject.AuditAction import AuditAction
 from app.application.service.authorization.AuthorizationService import AuthorizationService
 from app.common.exception.AppException import PublicError
-from app.common.util.IdGenerator import generate_id
+from app.domain.sharedkernel.factory.IdFactory import IdFactory
 from app.domain.object.model.ObjectVersion import ObjectVersion
 from app.domain.object.valueobject.ContentHash import ContentHash
 from app.domain.object.valueobject.MimeType import MimeType
@@ -62,13 +63,13 @@ class CreateVersionUseCase:
 
         content_hash = hashlib.sha256(command.data).hexdigest()
         content_size = len(command.data)
-        version_id = generate_id()
+        version_id = IdFactory.generate()
 
         # Upload blob BEFORE DB transaction — blob is not transactional.
         # The pointer keys on version_id (unique up front), so the upload does
         # not depend on the version number computed later inside the lock.
         storage_pointer = await self._blob.generate_pointer(
-            obj.owner_identity_id, version_id, command.filename
+            obj.owner_identity_id.to_bytes(), version_id.to_bytes(), command.filename
         )
         await self._blob.upload(storage_pointer, command.data, command.content_type)
 
@@ -103,8 +104,18 @@ class CreateVersionUseCase:
                 )
 
                 await self._save_version.save(version)
-                updated_obj = locked.update_version(version_id, now)
+                updated_obj = locked.update_version(version_id, now)  # version_id is Id
                 await self._save.update(updated_obj)
+
+                # Audit inside the same transaction — atomic with the version.
+                # Ghi audit trong cùng transaction - nguyên tử với version.
+                await self._audit.record(
+                    command.object_id,
+                    command.requester_identity_id,
+                    command.requester_subject_type,
+                    command.requester_name,
+                    AuditAction.UPDATE,
+                )
         except PublicError:
             # Business validation errors (object not found / wrong state) propagate
             # without the orphaned-blob log below — they are not infrastructure faults.
@@ -115,18 +126,10 @@ class CreateVersionUseCase:
             _log.error(
                 "DB failed after blob upload — orphaned blob needs cleanup: "
                 "version_id=%s pointer=%s",
-                version_id.hex(),
+                version_id.to_bytes().hex(),
                 storage_pointer,
             )
             raise
-
-        await self._audit.record(
-            command.object_id,
-            command.requester_identity_id,
-            command.requester_subject_type,
-            command.requester_name,
-            "UPDATE",
-        )
 
         return CreateVersionResult(
             version_id=version_id,

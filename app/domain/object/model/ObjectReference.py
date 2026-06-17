@@ -1,15 +1,16 @@
 from datetime import datetime
 
 from app.domain.object.valueobject.ResourceType import ResourceType
+from app.domain.sharedkernel.model.Id import Id
 
 
 class ObjectReference:
 
     def __init__(
         self,
-        reference_id: bytes,
-        object_id: bytes,
-        application_identity_id: bytes,
+        reference_id: Id,
+        object_id: Id,
+        application_identity_id: Id,
         application_name: str,
         resource_type: ResourceType,
         resource_id: str,
@@ -28,15 +29,15 @@ class ObjectReference:
         self._created_at = created_at
 
     @property
-    def reference_id(self) -> bytes:
+    def reference_id(self) -> Id:
         return self._reference_id
 
     @property
-    def object_id(self) -> bytes:
+    def object_id(self) -> Id:
         return self._object_id
 
     @property
-    def application_identity_id(self) -> bytes:
+    def application_identity_id(self) -> Id:
         return self._application_identity_id
 
     @property

@@ -1,5 +1,6 @@
 from app.domain.permission.model.ObjectPermission import ObjectPermission
 from app.domain.permission.role.Role import Role
+from app.domain.sharedkernel.model.Id import Id
 
 from app.infrastructure.persistence.entity.ObjectPermissionEntity import ObjectPermissionEntity
 
@@ -24,9 +25,9 @@ class ObjectPermissionMapper:
         ObjectPermissionMapper._require_non_null(entity.created_at, "created_at")
 
         return ObjectPermission(
-            permission_id=entity.permission_id,
-            object_id=entity.object_id,
-            subject_identity_id=entity.subject_identity_id,
+            permission_id=Id(entity.permission_id),
+            object_id=Id(entity.object_id),
+            subject_identity_id=Id(entity.subject_identity_id),
             subject_type=entity.subject_type,
             role=Role(entity.role),
             created_at=entity.created_at,
@@ -44,9 +45,9 @@ class ObjectPermissionMapper:
 
         entity = ObjectPermissionEntity()
 
-        entity.permission_id = model.permission_id
-        entity.object_id = model.object_id
-        entity.subject_identity_id = model.subject_identity_id
+        entity.permission_id = model.permission_id.to_bytes()
+        entity.object_id = model.object_id.to_bytes()
+        entity.subject_identity_id = model.subject_identity_id.to_bytes()
         entity.subject_type = model.subject_type
         entity.role = model.role.value
         entity.created_at = model.created_at

@@ -14,6 +14,7 @@ from app.application.usecase.object.GetObjectUseCase import GetObjectUseCase
 from app.application.usecase.object.RestoreObjectUseCase import RestoreObjectUseCase
 from app.common.exception.AppException import PublicError
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.sharedkernel.model.Id import Id
 
 # Exceptions raised here propagate to AppExceptionInterceptor
 # (app/api/grpc/interceptor/AppExceptionInterceptor.py), which redacts per the
@@ -89,7 +90,7 @@ class ObjectGrpcHandler(ObjectServiceServicer):
             requester_identity_id=claims.identity_id,
             requester_subject_type=claims.subject_type,
             requester_name=claims.name,
-            object_id=request.object_id,
+            object_id=Id(request.object_id),
         )
         await self._archive.execute(command)
         return ArchiveObjectResponse(
@@ -103,7 +104,7 @@ class ObjectGrpcHandler(ObjectServiceServicer):
             requester_identity_id=claims.identity_id,
             requester_subject_type=claims.subject_type,
             requester_name=claims.name,
-            object_id=request.object_id,
+            object_id=Id(request.object_id),
         )
         await self._restore.execute(command)
         return RestoreObjectResponse(

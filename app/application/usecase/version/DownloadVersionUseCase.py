@@ -4,6 +4,7 @@ from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.service.audit.AuditService import AuditService
+from app.domain.audit.valueobject.AuditAction import AuditAction
 from app.application.service.authorization.AuthorizationService import AuthorizationService
 from app.common.exception.AppException import PublicError
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
@@ -43,11 +44,11 @@ class DownloadVersionUseCase:
         data = await self._blob.download(version.storage_pointer)
 
         await self._audit.record(
-            obj.object_id,
+            query.object_id,
             query.requester_identity_id,
             query.requester_subject_type,
             query.requester_name,
-            "DOWNLOAD_VERSION",
+            AuditAction.DOWNLOAD_VERSION,
         )
 
         return DownloadVersionResult(

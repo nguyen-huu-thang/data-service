@@ -2,6 +2,7 @@ from pydantic import BaseModel
 
 from app.application.dto.version.CreateVersionResult import CreateVersionResult
 from app.domain.object.model.ObjectVersion import ObjectVersion
+from app.domain.sharedkernel.service.IdService import IdService
 
 
 class CreateVersionResponse(BaseModel):
@@ -28,20 +29,20 @@ class VersionListResponse(BaseModel):
 class VersionRestMapper:
     def to_create_response(self, result: CreateVersionResult) -> CreateVersionResponse:
         return CreateVersionResponse(
-            version_id=result.version_id.hex(),
+            version_id=IdService.to_string(result.version_id),
             version_number=result.version_number,
             content_hash=result.content_hash,
         )
 
     def to_version_response(self, version: ObjectVersion) -> VersionResponse:
         return VersionResponse(
-            version_id=version.version_id.hex(),
-            object_id=version.object_id.hex(),
+            version_id=IdService.to_string(version.version_id),
+            object_id=IdService.to_string(version.object_id),
             version_number=version.version_number,
             content_hash=version.content_hash.value,
             content_size=version.content_size,
             mime_type=version.mime_type.value,
-            created_by=version.created_by_identity_id.hex(),
+            created_by=IdService.to_string(version.created_by_identity_id),
             created_at=version.created_at.isoformat(),
         )
 

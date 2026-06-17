@@ -8,9 +8,10 @@ from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.application.port.outbound.permission.LoadPermissionPort import LoadPermissionPort
 from app.application.port.outbound.permission.SavePermissionPort import SavePermissionPort
 from app.application.service.audit.AuditService import AuditService
+from app.domain.audit.valueobject.AuditAction import AuditAction
 from app.application.service.authorization.AuthorizationService import AuthorizationService
 from app.common.exception.AppException import PublicError
-from app.common.util.IdGenerator import generate_id
+from app.domain.sharedkernel.factory.IdFactory import IdFactory
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.permission.capability.AclCapability import AclCapability
 from app.domain.permission.model.ObjectPermission import ObjectPermission
@@ -57,7 +58,7 @@ class GrantObjectPermissionUseCase:
                 await self._save_permission.delete(existing.permission_id)
 
             permission = ObjectPermission(
-                permission_id=generate_id(),
+                permission_id=IdFactory.generate(),
                 object_id=command.object_id,
                 subject_identity_id=command.target_identity_id,
                 subject_type=command.target_subject_type,
@@ -70,9 +71,9 @@ class GrantObjectPermissionUseCase:
             await self._save.update(updated_obj)
 
             await self._audit.record(
-                obj.object_id,
+                command.object_id,
                 command.requester_identity_id,
                 command.requester_subject_type,
                 command.requester_name,
-                "GRANT_PERMISSION",
+                AuditAction.GRANT_PERMISSION,
             )

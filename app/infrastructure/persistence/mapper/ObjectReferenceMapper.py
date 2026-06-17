@@ -4,6 +4,7 @@ from app.domain.object.model.ObjectReference import (
 from app.domain.object.valueobject.ResourceType import (
     ResourceType,
 )
+from app.domain.sharedkernel.model.Id import Id
 
 from app.infrastructure.persistence.entity.ObjectReferenceEntity import (
     ObjectReferenceEntity,
@@ -62,9 +63,9 @@ class ObjectReferenceMapper:
         )
 
         return ObjectReference(
-            reference_id=entity.reference_id,
-            object_id=entity.object_id,
-            application_identity_id=entity.application_identity_id,
+            reference_id=Id(entity.reference_id),
+            object_id=Id(entity.object_id),
+            application_identity_id=Id(entity.application_identity_id),
             application_name=entity.application_name,
             resource_type=ResourceType(
                 entity.resource_type,
@@ -89,12 +90,12 @@ class ObjectReferenceMapper:
 
         entity = ObjectReferenceEntity()
 
-        entity.reference_id = model.reference_id
+        entity.reference_id = model.reference_id.to_bytes()
 
-        entity.object_id = model.object_id
+        entity.object_id = model.object_id.to_bytes()
 
         entity.application_identity_id = (
-            model.application_identity_id
+            model.application_identity_id.to_bytes()
         )
 
         entity.application_name = (

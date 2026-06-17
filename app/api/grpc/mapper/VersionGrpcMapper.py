@@ -12,13 +12,16 @@ from app.application.dto.version.DownloadVersionResult import DownloadVersionRes
 from app.application.dto.version.GetVersionQuery import GetVersionQuery
 from app.application.dto.version.ListVersionsQuery import ListVersionsQuery
 from app.domain.object.model.ObjectVersion import ObjectVersion
+from app.domain.sharedkernel.model.Id import Id
 
 
 class VersionGrpcMapper:
+    # Internal gRPC carries ids as raw bytes on the wire; convert to/from Id here.
+    # gRPC nội bộ truyền id dạng bytes; chuyển đổi <-> Id tại đây.
     def to_create_command(
         self,
         request,
-        requester_identity_id: bytes,
+        requester_identity_id: Id,
         requester_subject_type: str = "HUMAN",
         requester_name: str = "",
     ) -> CreateVersionCommand:
@@ -26,7 +29,7 @@ class VersionGrpcMapper:
             requester_identity_id=requester_identity_id,
             requester_subject_type=requester_subject_type,
             requester_name=requester_name,
-            object_id=request.object_id,
+            object_id=Id(request.object_id),
             filename=request.filename,
             content_type=request.content_type,
             data=request.data,
@@ -34,7 +37,7 @@ class VersionGrpcMapper:
 
     def to_create_response(self, result: CreateVersionResult) -> CreateVersionResponse:
         return CreateVersionResponse(
-            version_id=result.version_id,
+            version_id=result.version_id.to_bytes(),
             version_number=result.version_number,
             content_hash=result.content_hash,
         )
@@ -42,7 +45,7 @@ class VersionGrpcMapper:
     def to_list_query(
         self,
         request,
-        requester_identity_id: bytes,
+        requester_identity_id: Id,
         requester_subject_type: str = "HUMAN",
         requester_name: str = "",
     ) -> ListVersionsQuery:
@@ -50,7 +53,7 @@ class VersionGrpcMapper:
             requester_identity_id=requester_identity_id,
             requester_subject_type=requester_subject_type,
             requester_name=requester_name,
-            object_id=request.object_id,
+            object_id=Id(request.object_id),
         )
 
     def to_list_response(self, versions: list[ObjectVersion]) -> ListVersionsResponse:
@@ -61,7 +64,7 @@ class VersionGrpcMapper:
     def to_get_query(
         self,
         request,
-        requester_identity_id: bytes,
+        requester_identity_id: Id,
         requester_subject_type: str = "HUMAN",
         requester_name: str = "",
     ) -> GetVersionQuery:
@@ -69,8 +72,8 @@ class VersionGrpcMapper:
             requester_identity_id=requester_identity_id,
             requester_subject_type=requester_subject_type,
             requester_name=requester_name,
-            object_id=request.object_id,
-            version_id=request.version_id,
+            object_id=Id(request.object_id),
+            version_id=Id(request.version_id),
         )
 
     def to_get_response(self, version: ObjectVersion) -> GetVersionResponse:
@@ -79,7 +82,7 @@ class VersionGrpcMapper:
     def to_download_query(
         self,
         request,
-        requester_identity_id: bytes,
+        requester_identity_id: Id,
         requester_subject_type: str = "HUMAN",
         requester_name: str = "",
     ) -> DownloadVersionQuery:
@@ -87,8 +90,8 @@ class VersionGrpcMapper:
             requester_identity_id=requester_identity_id,
             requester_subject_type=requester_subject_type,
             requester_name=requester_name,
-            object_id=request.object_id,
-            version_id=request.version_id,
+            object_id=Id(request.object_id),
+            version_id=Id(request.version_id),
         )
 
     def to_download_response(self, result: DownloadVersionResult) -> DownloadVersionResponse:
@@ -102,11 +105,11 @@ class VersionGrpcMapper:
     @staticmethod
     def _to_version_info(version: ObjectVersion) -> VersionInfo:
         return VersionInfo(
-            version_id=version.version_id,
+            version_id=version.version_id.to_bytes(),
             version_number=version.version_number,
             content_hash=version.content_hash.value,
             content_size=version.content_size,
             mime_type=version.mime_type.value,
-            created_by=version.created_by_identity_id,
+            created_by=version.created_by_identity_id.to_bytes(),
             created_at_unix=int(version.created_at.timestamp()),
         )

@@ -4,6 +4,8 @@
 
 > Distributed data infrastructure for the Xime Base Platform — managing object storage, capability-based authorization, shard routing, and data lifecycle.
 
+> 🔒 **Version notice.** This public repository is a **reference / learning edition** and will **soon stop receiving updates**. Active development continues in a **private edition used for commercial purposes**, which includes advanced capabilities not published here. In brief, the private edition adds: multi-level encryption for private data (moving toward end-to-end), a dedicated key-management infrastructure, and a high-performance engine for heavy data processing. The technical details of these features are intentionally **not** part of this public edition.
+
 ---
 
 Data Service is one of the core services of the **Xime Base Platform**. It provides a generic, reusable data infrastructure layer for all applications built on the platform — without knowing anything about business domain.
@@ -144,7 +146,9 @@ Data Service is the **reference application** for the XIME Framework. It demonst
 
 ## Project Status
 
-Data Service is in **active development**. 14 implementation phases are complete, covering domain layer, persistence, authorization, API adapters, JWT verification, testing, and Trust Service integration (mTLS, bootstrap certificate, key sync, schedulers).
+This public edition has completed 14 implementation phases — domain layer, persistence, authorization, API adapters, JWT verification, testing, and Trust Service integration (mTLS, bootstrap certificate, key sync, schedulers) — and is published as a reference for the XIME Framework.
+
+It will **soon stop being updated**: further development continues in the private commercial edition (see the version notice at the top of this page).
 
 ---
 

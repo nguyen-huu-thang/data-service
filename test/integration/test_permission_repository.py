@@ -7,7 +7,8 @@ import pytest
 import pytest_asyncio
 
 from app.domain.permission.role.Role import Role
-from app.common.util.IdGenerator import generate_id
+from app.domain.sharedkernel.factory.IdFactory import IdFactory
+from app.domain.sharedkernel.model.Id import Id
 from app.domain.permission.model.ObjectPermission import ObjectPermission
 from app.infrastructure.persistence.repository.object.SqlAlchemyObjectRepository import (
     SqlAlchemyObjectRepository,
@@ -23,9 +24,9 @@ pytestmark = pytest.mark.asyncio
 _NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
-def _make_permission(object_id: bytes, subject_id: bytes, role: Role) -> ObjectPermission:
+def _make_permission(object_id: Id, subject_id: Id, role: Role) -> ObjectPermission:
     return ObjectPermission(
-        permission_id=generate_id(),
+        permission_id=IdFactory.generate(),
         object_id=object_id,
         subject_identity_id=subject_id,
         subject_type="HUMAN",
@@ -45,8 +46,8 @@ async def repos(db_session):
 @pytest_asyncio.fixture
 async def saved_object(repos, db_session):
     obj_repo, _ = repos
-    owner_id  = generate_id()
-    obj = make_object(object_id=generate_id(), owner_identity_id=owner_id)
+    owner_id  = IdFactory.generate()
+    obj = make_object(object_id=IdFactory.generate(), owner_identity_id=owner_id)
     await obj_repo.save(obj)
     await db_session.flush()
     return obj
@@ -56,7 +57,7 @@ async def saved_object(repos, db_session):
 
 async def test_save_and_find_by_subject_and_object(repos, db_session, saved_object):
     _, perm_repo = repos
-    subject_id = generate_id()
+    subject_id = IdFactory.generate()
     perm = _make_permission(saved_object.object_id, subject_id, Role.VIEWER)
 
     await perm_repo.save(perm)
@@ -70,14 +71,14 @@ async def test_save_and_find_by_subject_and_object(repos, db_session, saved_obje
 
 async def test_find_by_subject_and_object_returns_none_when_absent(repos, saved_object):
     _, perm_repo = repos
-    result = await perm_repo.find_by_subject_and_object(generate_id(), saved_object.object_id)
+    result = await perm_repo.find_by_subject_and_object(IdFactory.generate(), saved_object.object_id)
     assert result is None
 
 
 async def test_find_by_object_returns_all_permissions(repos, db_session, saved_object):
     _, perm_repo = repos
-    subj_a = generate_id()
-    subj_b = generate_id()
+    subj_a = IdFactory.generate()
+    subj_b = IdFactory.generate()
 
     await perm_repo.save(_make_permission(saved_object.object_id, subj_a, Role.EDITOR))
     await perm_repo.save(_make_permission(saved_object.object_id, subj_b, Role.VIEWER))
@@ -93,7 +94,7 @@ async def test_find_by_object_returns_all_permissions(repos, db_session, saved_o
 
 async def test_delete_removes_permission(repos, db_session, saved_object):
     _, perm_repo = repos
-    subject_id = generate_id()
+    subject_id = IdFactory.generate()
     perm = _make_permission(saved_object.object_id, subject_id, Role.EDITOR)
 
     await perm_repo.save(perm)
@@ -109,8 +110,8 @@ async def test_delete_removes_permission(repos, db_session, saved_object):
 async def test_delete_all_by_object_removes_all(repos, db_session, saved_object):
     _, perm_repo = repos
 
-    await perm_repo.save(_make_permission(saved_object.object_id, generate_id(), Role.EDITOR))
-    await perm_repo.save(_make_permission(saved_object.object_id, generate_id(), Role.VIEWER))
+    await perm_repo.save(_make_permission(saved_object.object_id, IdFactory.generate(), Role.EDITOR))
+    await perm_repo.save(_make_permission(saved_object.object_id, IdFactory.generate(), Role.VIEWER))
     await db_session.flush()
 
     await perm_repo.delete_all_by_object(saved_object.object_id)

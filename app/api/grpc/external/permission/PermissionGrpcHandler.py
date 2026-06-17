@@ -8,6 +8,7 @@ from app.application.usecase.permission.GrantObjectPermissionUseCase import Gran
 from app.application.usecase.permission.RevokeObjectPermissionUseCase import RevokeObjectPermissionUseCase
 from app.common.exception.AppException import PublicError
 from app.domain.permission.role.Role import Role
+from app.domain.sharedkernel.model.Id import Id
 
 # Exceptions raised here propagate to AppExceptionInterceptor
 # (app/api/grpc/interceptor/AppExceptionInterceptor.py), which redacts per the
@@ -50,8 +51,8 @@ class PermissionGrpcHandler(PermissionServiceServicer):
             requester_identity_id=claims.identity_id,
             requester_subject_type=claims.subject_type,
             requester_name=claims.name,
-            object_id=request.object_id,
-            target_identity_id=request.target_identity_id,
+            object_id=Id(request.object_id),
+            target_identity_id=Id(request.target_identity_id),
             target_subject_type=request.target_subject_type or "HUMAN",
             role=self._parse_role(request.role),
         )
@@ -64,8 +65,8 @@ class PermissionGrpcHandler(PermissionServiceServicer):
             requester_identity_id=claims.identity_id,
             requester_subject_type=claims.subject_type,
             requester_name=claims.name,
-            object_id=request.object_id,
-            target_identity_id=request.target_identity_id,
+            object_id=Id(request.object_id),
+            target_identity_id=Id(request.target_identity_id),
         )
         await self._revoke.execute(command)
         return self._make_revoke_response()

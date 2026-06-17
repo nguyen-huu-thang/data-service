@@ -2,6 +2,7 @@ from datetime import datetime
 
 from app.domain.permission.capability.AclCapability import AclCapability
 from app.domain.permission.role.Role import Role
+from app.domain.sharedkernel.model.Id import Id
 
 # Role → allowed ACL capabilities
 _ROLE_CAPABILITIES: dict[Role, frozenset[AclCapability]] = {
@@ -22,9 +23,9 @@ class ObjectPermission:
 
     def __init__(
         self,
-        permission_id: bytes,
-        object_id: bytes,
-        subject_identity_id: bytes,
+        permission_id: Id,
+        object_id: Id,
+        subject_identity_id: Id,
         subject_type: str,
         role: Role,
         created_at: datetime,
@@ -41,15 +42,15 @@ class ObjectPermission:
         self._created_at = created_at
 
     @property
-    def permission_id(self) -> bytes:
+    def permission_id(self) -> Id:
         return self._permission_id
 
     @property
-    def object_id(self) -> bytes:
+    def object_id(self) -> Id:
         return self._object_id
 
     @property
-    def subject_identity_id(self) -> bytes:
+    def subject_identity_id(self) -> Id:
         return self._subject_identity_id
 
     @property

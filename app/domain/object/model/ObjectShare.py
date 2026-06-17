@@ -1,12 +1,14 @@
 from datetime import datetime
 
+from app.domain.sharedkernel.model.Id import Id
+
 
 class ObjectShare:
 
     def __init__(
         self,
-        share_id: bytes,
-        object_id: bytes,
+        share_id: Id,
+        object_id: Id,
         share_token: str,
         expires_at: datetime | None,
         created_at: datetime,
@@ -22,11 +24,11 @@ class ObjectShare:
         self._created_at = created_at
 
     @property
-    def share_id(self) -> bytes:
+    def share_id(self) -> Id:
         return self._share_id
 
     @property
-    def object_id(self) -> bytes:
+    def object_id(self) -> Id:
         return self._object_id
 
     @property

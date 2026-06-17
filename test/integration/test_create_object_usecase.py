@@ -17,7 +17,7 @@ from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.object.valueobject.ObjectType import ObjectType
 from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
 from app.domain.permission.role.Role import Role
-from app.common.util.IdGenerator import generate_id
+from app.domain.sharedkernel.factory.IdFactory import IdFactory
 from app.infrastructure.persistence.repository.audit.SqlAlchemyAuditRepository import (
     SqlAlchemyAuditRepository,
 )
@@ -79,7 +79,7 @@ async def use_case_and_repos(db_session):
 
 async def test_create_object_persists_data_object(use_case_and_repos, db_session):
     uc, obj_repo, *_ = use_case_and_repos
-    requester = generate_id()
+    requester = IdFactory.generate()
 
     result = await uc.execute(CreateObjectCommand(
         requester_identity_id=requester,
@@ -103,7 +103,7 @@ async def test_create_object_persists_data_object(use_case_and_repos, db_session
 
 async def test_create_object_creates_version_1(use_case_and_repos, db_session):
     uc, obj_repo, ver_repo, *_ = use_case_and_repos
-    requester = generate_id()
+    requester = IdFactory.generate()
 
     result = await uc.execute(CreateObjectCommand(
         requester_identity_id=requester,
@@ -128,7 +128,7 @@ async def test_create_object_creates_version_1(use_case_and_repos, db_session):
 
 async def test_create_object_grants_owner_permission(use_case_and_repos, db_session):
     uc, _, _, perm_repo, _ = use_case_and_repos
-    requester = generate_id()
+    requester = IdFactory.generate()
 
     result = await uc.execute(CreateObjectCommand(
         requester_identity_id=requester,
@@ -150,7 +150,7 @@ async def test_create_object_grants_owner_permission(use_case_and_repos, db_sess
 
 async def test_create_object_uploads_blob(use_case_and_repos):
     uc, _, _, _, blob = use_case_and_repos
-    requester = generate_id()
+    requester = IdFactory.generate()
 
     await uc.execute(CreateObjectCommand(
         requester_identity_id=requester,
@@ -172,7 +172,7 @@ async def test_create_object_uploads_blob(use_case_and_repos):
 
 async def test_create_object_current_version_id_set(use_case_and_repos, db_session):
     uc, obj_repo, ver_repo, *_ = use_case_and_repos
-    requester = generate_id()
+    requester = IdFactory.generate()
 
     result = await uc.execute(CreateObjectCommand(
         requester_identity_id=requester,

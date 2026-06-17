@@ -14,6 +14,7 @@ from app.application.port.outbound.permission.LoadPermissionPort import LoadPerm
 from app.application.port.outbound.permission.SavePermissionPort import SavePermissionPort
 from app.application.port.outbound.permission.LoadSubjectPermissionPort import LoadSubjectPermissionPort
 from app.application.port.outbound.audit.SaveAuditPort import SaveAuditPort
+from app.application.port.outbound.audit.LoadAuditPort import LoadAuditPort
 from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 
 # Trust ports
@@ -22,16 +23,14 @@ from app.application.port.outbound.trust.SaveCertificatePort import SaveCertific
 from app.application.port.outbound.trust.LoadVerificationKeyPort import LoadVerificationKeyPort
 from app.application.port.outbound.trust.SaveVerificationKeyPort import SaveVerificationKeyPort
 
-# Legacy flat-style ports (still bound for backward compatibility)
-from app.application.port.outbound.ObjectRepository import ObjectRepository
-from app.application.port.outbound.ObjectVersionRepository import ObjectVersionRepository
-from app.application.port.outbound.ObjectReferenceRepository import ObjectReferenceRepository
-from app.application.port.outbound.ObjectShareRepository import ObjectShareRepository
-from app.application.port.outbound.ObjectTagRepository import ObjectTagRepository
-from app.application.port.outbound.ObjectPermissionRepository import ObjectPermissionRepository
-from app.application.port.outbound.SubjectPermissionRepository import SubjectPermissionRepository
-from app.application.port.outbound.SubjectInfoRepository import SubjectInfoRepository
-from app.application.port.outbound.ObjectAuditRepository import ObjectAuditRepository
+# Subject ports
+from app.application.port.outbound.subject.SubjectInfoRepository import SubjectInfoRepository
+from app.application.port.outbound.permission.SubjectPermissionRepository import SubjectPermissionRepository
+
+# Share / tag / reference ports
+from app.application.port.outbound.reference.ObjectReferenceRepository import ObjectReferenceRepository
+from app.application.port.outbound.share.ObjectShareRepository import ObjectShareRepository
+from app.application.port.outbound.tag.ObjectTagRepository import ObjectTagRepository
 
 from app.infrastructure.storage.local.LocalDiskStorageAdapter import LocalDiskStorageAdapter
 
@@ -41,6 +40,10 @@ from app.infrastructure.persistence.repository.trust.TrustVerificationKeyReposit
 
 # Manually registered trust classes (not in scanned packages)
 from app.integration.trust.bootstrap.Bootstrap import Bootstrap
+
+# Domain services/policies (domain package is excluded from auto-scan)
+from app.domain.permission.policy.AccessPolicy import AccessPolicy
+from app.domain.sharedkernel.routing.ShardRouter import ShardRouter
 
 # Structured repositories
 from app.infrastructure.persistence.repository.object.SqlAlchemyObjectRepository import (
@@ -55,17 +58,13 @@ from app.infrastructure.persistence.repository.version.SqlAlchemyVersionReposito
 from app.infrastructure.persistence.repository.audit.SqlAlchemyAuditRepository import (
     SqlAlchemyAuditRepository as StructuredAuditRepository,
 )
+from app.infrastructure.persistence.repository.subject.SqlAlchemySubjectInfoRepository import SqlAlchemySubjectInfoRepository
+from app.infrastructure.persistence.repository.permission.SqlAlchemySubjectPermissionRepository import SqlAlchemySubjectPermissionRepository
 
-# Legacy flat repositories
-from app.infrastructure.persistence.repository.SqlAlchemyObjectAuditRepository import SqlAlchemyObjectAuditRepository
-from app.infrastructure.persistence.repository.SqlAlchemyObjectPermissionRepository import SqlAlchemyObjectPermissionRepository
-from app.infrastructure.persistence.repository.SqlAlchemyObjectReferenceRepository import SqlAlchemyObjectReferenceRepository
-from app.infrastructure.persistence.repository.SqlAlchemyObjectRepository import SqlAlchemyObjectRepository
-from app.infrastructure.persistence.repository.SqlAlchemyObjectShareRepository import SqlAlchemyObjectShareRepository
-from app.infrastructure.persistence.repository.SqlAlchemyObjectTagRepository import SqlAlchemyObjectTagRepository
-from app.infrastructure.persistence.repository.SqlAlchemyObjectVersionRepository import SqlAlchemyObjectVersionRepository
-from app.infrastructure.persistence.repository.SqlAlchemySubjectPermissionRepository import SqlAlchemySubjectPermissionRepository
-from app.infrastructure.persistence.repository.SqlAlchemySubjectInfoRepository import SqlAlchemySubjectInfoRepository
+# Share / tag / reference repositories
+from app.infrastructure.persistence.repository.reference.SqlAlchemyObjectReferenceRepository import SqlAlchemyObjectReferenceRepository
+from app.infrastructure.persistence.repository.share.SqlAlchemyObjectShareRepository import SqlAlchemyObjectShareRepository
+from app.infrastructure.persistence.repository.tag.SqlAlchemyObjectTagRepository import SqlAlchemyObjectTagRepository
 
 
 # ── DI configuration for Data Service ────────────────────────────────────────
@@ -89,6 +88,10 @@ dependency.register(
     # Bootstrap creates BootstrapLoader/BootstrapValidator internally,
     # so they're not DI-managed — only Bootstrap itself is registered here.
     Bootstrap,
+    # Domain services/policies — pure, no dependencies; injected into app services.
+    # Dịch vụ/policy domain - thuần, không phụ thuộc; inject vào service application.
+    AccessPolicy,
+    ShardRouter,
 )
 
 # ── Package scan ──────────────────────────────────────────────────────────────
@@ -106,13 +109,21 @@ dependency.scan(
     "app.application.usecase.permission",
     # Subject sync use cases
     "app.application.usecase.subject",
+    # Audit read use cases
+    "app.application.usecase.audit",
+    # Share / tag / reference use cases
+    "app.application.usecase.share",
+    "app.application.usecase.tag",
+    "app.application.usecase.reference",
     # Infrastructure — DB repositories (structured)
     "app.infrastructure.persistence.repository.object",
     "app.infrastructure.persistence.repository.permission",
     "app.infrastructure.persistence.repository.version",
     "app.infrastructure.persistence.repository.audit",
-    # Infrastructure — DB repositories (legacy flat)
-    "app.infrastructure.persistence.repository",
+    "app.infrastructure.persistence.repository.subject",
+    "app.infrastructure.persistence.repository.share",
+    "app.infrastructure.persistence.repository.tag",
+    "app.infrastructure.persistence.repository.reference",
     # Infrastructure — blob storage
     "app.infrastructure.storage",
     # Infrastructure — Trust repositories
@@ -132,6 +143,9 @@ dependency.scan(
     # API — REST controllers
     "app.api.rest.external.object",
     "app.api.rest.external.version",
+    "app.api.rest.external.share",
+    "app.api.rest.external.tag",
+    "app.api.rest.external.reference",
     # API — REST mappers
     "app.api.rest.mapper",
 )
@@ -155,6 +169,7 @@ dependency.bind({
     LoadSubjectPermissionPort: SqlAlchemySubjectPermissionRepository,
 
     SaveAuditPort: StructuredAuditRepository,
+    LoadAuditPort: StructuredAuditRepository,
 
     # Blob storage
     BlobStoragePort: LocalDiskStorageAdapter,
@@ -165,14 +180,12 @@ dependency.bind({
     LoadVerificationKeyPort: TrustVerificationKeyRepository,
     SaveVerificationKeyPort: TrustVerificationKeyRepository,
 
-    # Legacy flat ports → legacy repositories
-    ObjectRepository: SqlAlchemyObjectRepository,
-    ObjectVersionRepository: SqlAlchemyObjectVersionRepository,
+    # Subject ports → subject repositories
+    SubjectPermissionRepository: SqlAlchemySubjectPermissionRepository,
+    SubjectInfoRepository: SqlAlchemySubjectInfoRepository,
+
+    # Share / tag / reference ports → repositories
     ObjectReferenceRepository: SqlAlchemyObjectReferenceRepository,
     ObjectShareRepository: SqlAlchemyObjectShareRepository,
     ObjectTagRepository: SqlAlchemyObjectTagRepository,
-    ObjectPermissionRepository: SqlAlchemyObjectPermissionRepository,
-    SubjectPermissionRepository: SqlAlchemySubjectPermissionRepository,
-    SubjectInfoRepository: SqlAlchemySubjectInfoRepository,
-    ObjectAuditRepository: SqlAlchemyObjectAuditRepository,
 })

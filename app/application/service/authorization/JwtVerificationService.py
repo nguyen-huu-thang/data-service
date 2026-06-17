@@ -6,6 +6,7 @@ from xime.core.config.runtime import RuntimeConfig
 
 from app.application.dto.auth.VerifiedClaims import VerifiedClaims
 from app.common.exception.AppException import PublicError
+from app.domain.sharedkernel.service.IdService import IdService
 from app.integration.trust.key.TrustKeyClient import TrustKeyClient
 from app.integration.trust.key.VerificationKeyCache import VerificationKeyCache
 
@@ -81,10 +82,14 @@ class JwtVerificationService:
         if token_version is None:
             raise PublicError("E007002","Missing token_version claim")
 
+        # sub carries the identity id as a Base62 string (platform-wide string-ID
+        # convention, same as REST path params).
+        # sub mang identity id dạng chuỗi Base62 (chuẩn string-ID toàn platform,
+        # giống path param REST).
         try:
-            identity_id = bytes.fromhex(sub)
+            identity_id = IdService.from_string(sub)
         except ValueError as e:
-            raise PublicError("E007002",f"Invalid sub format (expected hex): {e}") from e
+            raise PublicError("E007002",f"Invalid sub format (expected Base62): {e}") from e
 
         subject_type = payload.get("subject_type", "HUMAN")
         name = payload.get("name", "")

@@ -4,6 +4,7 @@ from app.api.grpc.internal.generated.object_internal_service_pb2_grpc import (
 )
 from app.application.dto.object.PurgeObjectCommand import PurgeObjectCommand
 from app.application.usecase.object.PurgeObjectUseCase import PurgeObjectUseCase
+from app.domain.sharedkernel.model.Id import Id
 
 # Exceptions raised here propagate to AppExceptionInterceptor
 # (app/api/grpc/interceptor/AppExceptionInterceptor.py), which redacts per the
@@ -23,10 +24,10 @@ class ObjectInternalGrpcHandler(ObjectInternalServiceServicer):
 
     async def PurgeObject(self, request, context):
         command = PurgeObjectCommand(
-            requester_identity_id=request.requester_identity_id,
+            requester_identity_id=Id(request.requester_identity_id),
             requester_subject_type=getattr(request, "requester_subject_type", "APPLICATION"),
             requester_name=getattr(request, "requester_name", ""),
-            object_id=request.object_id,
+            object_id=Id(request.object_id),
         )
         await self._purge.execute(command)
         return PurgeObjectResponse(object_id=request.object_id)

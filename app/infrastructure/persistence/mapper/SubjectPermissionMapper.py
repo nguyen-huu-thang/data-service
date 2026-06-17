@@ -7,6 +7,7 @@ from app.domain.permission.model.SubjectPermission import (
 from app.domain.subject.valueobject.SubjectType import (
     SubjectType,
 )
+from app.domain.sharedkernel.model.Id import Id
 
 from app.infrastructure.persistence.entity.SubjectPermissionEntity import (
     SubjectPermissionEntity,
@@ -60,8 +61,8 @@ class SubjectPermissionMapper:
         )
 
         return SubjectPermission(
-            permission_id=entity.permission_id,
-            subject_identity_id=entity.subject_identity_id,
+            permission_id=Id(entity.permission_id),
+            subject_identity_id=Id(entity.subject_identity_id),
             subject_type=SubjectType(
                 entity.subject_type,
             ),
@@ -89,11 +90,11 @@ class SubjectPermissionMapper:
         entity = SubjectPermissionEntity()
 
         entity.permission_id = (
-            model.permission_id
+            model.permission_id.to_bytes()
         )
 
         entity.subject_identity_id = (
-            model.subject_identity_id
+            model.subject_identity_id.to_bytes()
         )
 
         entity.subject_type = (

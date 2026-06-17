@@ -11,3 +11,7 @@ __pycache__/
 runtime/
 
 framework-notes
+
+# Tài liệu thiết kế nội bộ - không công khai
+# Internal design docs - keep private
+.claude/

@@ -4,6 +4,7 @@ from app.domain.subject.model.SubjectInfo import (
 from app.domain.subject.valueobject.SubjectType import (
     SubjectType,
 )
+from app.domain.sharedkernel.model.Id import Id
 
 from app.infrastructure.persistence.entity.SubjectInfoEntity import (
     SubjectInfoEntity,
@@ -47,7 +48,7 @@ class SubjectInfoMapper:
         )
 
         return SubjectInfo(
-            identity_id=entity.identity_id,
+            identity_id=Id(entity.identity_id),
             subject_type=SubjectType(
                 entity.subject_type,
             ),
@@ -72,7 +73,7 @@ class SubjectInfoMapper:
         entity = SubjectInfoEntity()
 
         entity.identity_id = (
-            model.identity_id
+            model.identity_id.to_bytes()
         )
 
         entity.subject_type = (

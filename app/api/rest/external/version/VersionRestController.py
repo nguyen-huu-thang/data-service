@@ -18,6 +18,8 @@ from app.application.usecase.version.DownloadVersionUseCase import DownloadVersi
 from app.application.usecase.version.GetVersionUseCase import GetVersionUseCase
 from app.application.usecase.version.ListVersionsUseCase import ListVersionsUseCase
 from app.common.exception.AppException import PublicError
+from app.domain.sharedkernel.model.Id import Id
+from app.domain.sharedkernel.service.IdService import IdService
 
 # Business and auth errors raised below propagate to the global AppException
 # handler (app/api/rest/error_handler.py), which renders {errorKey, code, message}
@@ -33,11 +35,13 @@ def _require_token(authorization: str | None) -> str:
     return authorization[7:]
 
 
-def _parse_id(hex_id: str, label: str = "ID") -> bytes:
+def _parse_id(base62_id: str, label: str = "ID") -> Id:
+    # IDs cross the external boundary as Base62 strings.
+    # ID qua biên ngoài dạng chuỗi Base62.
     try:
-        return bytes.fromhex(hex_id)
+        return IdService.from_string(base62_id)
     except ValueError:
-        raise PublicError("E007001", f"Invalid {label}: {hex_id}")
+        raise PublicError("E007001", f"Invalid {label}: {base62_id}")
 
 
 class VersionRestController:

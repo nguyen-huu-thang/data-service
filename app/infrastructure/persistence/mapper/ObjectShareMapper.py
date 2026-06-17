@@ -1,6 +1,7 @@
 from app.domain.object.model.ObjectShare import (
     ObjectShare,
 )
+from app.domain.sharedkernel.model.Id import Id
 
 from app.infrastructure.persistence.entity.ObjectShareEntity import (
     ObjectShareEntity,
@@ -44,8 +45,8 @@ class ObjectShareMapper:
         )
 
         return ObjectShare(
-            share_id=entity.share_id,
-            object_id=entity.object_id,
+            share_id=Id(entity.share_id),
+            object_id=Id(entity.object_id),
             share_token=entity.share_token,
             expires_at=entity.expires_at,
             created_at=entity.created_at,
@@ -67,9 +68,9 @@ class ObjectShareMapper:
 
         entity = ObjectShareEntity()
 
-        entity.share_id = model.share_id
+        entity.share_id = model.share_id.to_bytes()
 
-        entity.object_id = model.object_id
+        entity.object_id = model.object_id.to_bytes()
 
         entity.share_token = (
             model.share_token

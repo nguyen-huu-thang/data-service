@@ -8,6 +8,7 @@ from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.application.port.outbound.permission.LoadPermissionPort import LoadPermissionPort
 from app.application.port.outbound.permission.SavePermissionPort import SavePermissionPort
 from app.application.service.audit.AuditService import AuditService
+from app.domain.audit.valueobject.AuditAction import AuditAction
 from app.application.service.authorization.AuthorizationService import AuthorizationService
 from app.common.exception.AppException import PublicError
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
@@ -57,9 +58,9 @@ class RevokeObjectPermissionUseCase:
                 await self._save.update(updated_obj)
 
             await self._audit.record(
-                obj.object_id,
+                command.object_id,
                 command.requester_identity_id,
                 command.requester_subject_type,
                 command.requester_name,
-                "REVOKE_PERMISSION",
+                AuditAction.REVOKE_PERMISSION,
             )

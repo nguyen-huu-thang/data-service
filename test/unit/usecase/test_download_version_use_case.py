@@ -15,6 +15,7 @@ from test._app_errors import raises_app
 from app.application.dto.version.DownloadVersionQuery import DownloadVersionQuery
 from app.application.usecase.version.DownloadVersionUseCase import DownloadVersionUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.sharedkernel.model.Id import Id
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, VERSION_ID, make_object, make_version, mock_audit, mock_auth
 
 pytestmark = pytest.mark.asyncio
@@ -24,11 +25,11 @@ _BLOB = b"version binary data"
 
 def _query(requester: bytes = OWNER_ID) -> DownloadVersionQuery:
     return DownloadVersionQuery(
-        requester_identity_id=requester,
+        requester_identity_id=Id(requester),
         requester_subject_type="HUMAN",
         requester_name="test",
-        object_id=OBJECT_ID,
-        version_id=VERSION_ID,
+        object_id=Id(OBJECT_ID),
+        version_id=Id(VERSION_ID),
     )
 
 
@@ -87,7 +88,7 @@ async def test_records_audit_on_download():
         audit_service=audit,
     )
     await uc.execute(_query())
-    audit.record.assert_called_once_with(OBJECT_ID, OWNER_ID, "HUMAN", "test", "DOWNLOAD_VERSION")
+    audit.record.assert_called_once_with(Id(OBJECT_ID), Id(OWNER_ID), "HUMAN", "test", "DOWNLOAD_VERSION")
 
 
 # ── Not found ─────────────────────────────────────────────────────────────────

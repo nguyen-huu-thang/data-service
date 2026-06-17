@@ -19,6 +19,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.application.service.authorization.JwtVerificationService import JwtVerificationService
 from app.common.exception.AppException import PublicError
+from app.domain.sharedkernel.model.Id import Id
+from app.domain.sharedkernel.service.IdService import IdService
 from app.domain.trust.VerificationKeyRecord import VerificationKeyRecord
 from app.integration.trust.key.VerificationKeyCache import VerificationKeyCache
 
@@ -27,7 +29,8 @@ pytestmark = pytest.mark.asyncio
 _KID        = "test-key-1"
 _SERVICE_ID = "data-service"
 _ISSUER     = "identity"
-_IDENTITY   = b'\xAB' * 24
+_IDENTITY   = Id(b'\xAB' * 24)
+_IDENTITY_SUB = IdService.to_string(_IDENTITY)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -52,7 +55,7 @@ def _make_token(
     aud: str = _SERVICE_ID,
     iss: str = _ISSUER,
     exp_delta: timedelta = timedelta(hours=1),
-    sub: str = _IDENTITY.hex(),
+    sub: str = _IDENTITY_SUB,
 ) -> str:
     now = datetime.now(timezone.utc)
     return jwt.encode(

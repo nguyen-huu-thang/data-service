@@ -3,11 +3,13 @@ from fastapi import File, Form, Header, Response, UploadFile
 from xime.adapters.web import delete, get, post
 
 from app.api.rest.mapper.ObjectRestMapper import (
+    AuditListResponse,
     CreateObjectResponse,
     ObjectResponse,
     ObjectRestMapper,
     ObjectStatusResponse,
 )
+from app.application.dto.audit.ListObjectAuditQuery import ListObjectAuditQuery
 from app.application.dto.object.ArchiveObjectCommand import ArchiveObjectCommand
 from app.application.dto.object.CreateObjectCommand import CreateObjectCommand
 from app.application.dto.object.DeleteObjectCommand import DeleteObjectCommand
@@ -15,6 +17,7 @@ from app.application.dto.object.DownloadObjectQuery import DownloadObjectQuery
 from app.application.dto.object.GetObjectQuery import GetObjectQuery
 from app.application.dto.object.RestoreObjectCommand import RestoreObjectCommand
 from app.application.service.authorization.JwtVerificationService import JwtVerificationService
+from app.application.usecase.audit.ListObjectAuditUseCase import ListObjectAuditUseCase
 from app.application.usecase.object.ArchiveObjectUseCase import ArchiveObjectUseCase
 from app.application.usecase.object.CreateObjectUseCase import CreateObjectUseCase
 from app.application.usecase.object.DeleteObjectUseCase import DeleteObjectUseCase
@@ -24,6 +27,8 @@ from app.application.usecase.object.RestoreObjectUseCase import RestoreObjectUse
 from app.common.exception.AppException import PublicError
 from app.domain.object.valueobject.ObjectType import ObjectType
 from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
+from app.domain.sharedkernel.model.Id import Id
+from app.domain.sharedkernel.service.IdService import IdService
 
 # Business and auth errors raised below propagate to the global AppException
 # handler (app/api/rest/error_handler.py), which renders {errorKey, code, message}
@@ -39,11 +44,13 @@ def _require_token(authorization: str | None) -> str:
     return authorization[7:]
 
 
-def _parse_object_id(hex_id: str) -> bytes:
+def _parse_object_id(base62_id: str) -> Id:
+    # Object ids cross the external boundary as Base62 strings.
+    # ID qua biên ngoài dạng chuỗi Base62.
     try:
-        return bytes.fromhex(hex_id)
+        return IdService.from_string(base62_id)
     except ValueError:
-        raise PublicError("E007001", f"Invalid object_id: {hex_id}")
+        raise PublicError("E007001", f"Invalid object_id: {base62_id}")
 
 
 class ObjectRestController:
@@ -58,6 +65,7 @@ class ObjectRestController:
         delete_object_use_case: DeleteObjectUseCase,
         archive_object_use_case: ArchiveObjectUseCase,
         restore_object_use_case: RestoreObjectUseCase,
+        list_object_audit_use_case: ListObjectAuditUseCase,
         jwt_verification_service: JwtVerificationService,
         mapper: ObjectRestMapper,
     ) -> None:
@@ -67,6 +75,7 @@ class ObjectRestController:
         self._delete = delete_object_use_case
         self._archive = archive_object_use_case
         self._restore = restore_object_use_case
+        self._list_audit = list_object_audit_use_case
         self._jwt = jwt_verification_service
         self._mapper = mapper
 
@@ -191,3 +200,19 @@ class ObjectRestController:
             )
         )
         return self._mapper.to_restore_response(oid)
+
+    @get("/{object_id}/audit", response_model=AuditListResponse, summary="List the audit trail of an object")
+    async def list_object_audit(
+        self,
+        object_id: str,
+        authorization: str | None = Header(default=None),
+    ) -> AuditListResponse:
+        claims = await self._jwt.verify(_require_token(authorization))
+        query = ListObjectAuditQuery(
+            requester_identity_id=claims.identity_id,
+            requester_subject_type=claims.subject_type,
+            requester_name=claims.name,
+            object_id=_parse_object_id(object_id),
+        )
+        audits = await self._list_audit.execute(query)
+        return self._mapper.to_audit_list_response(audits)

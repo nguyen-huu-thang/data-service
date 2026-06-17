@@ -14,6 +14,7 @@ from test._app_errors import raises_app
 from app.application.dto.object.DownloadObjectQuery import DownloadObjectQuery
 from app.application.usecase.object.DownloadObjectUseCase import DownloadObjectUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.sharedkernel.model.Id import Id
 from test.conftest import (
     OBJECT_ID, OTHER_ID, OWNER_ID, VERSION_ID,
     make_object, make_version, mock_audit, mock_auth, mock_tx,
@@ -26,10 +27,10 @@ _BLOB_DATA = b"fake binary content"
 
 def _query(requester: bytes = OWNER_ID) -> DownloadObjectQuery:
     return DownloadObjectQuery(
-        requester_identity_id=requester,
+        requester_identity_id=Id(requester),
         requester_subject_type="HUMAN",
         requester_name="test",
-        object_id=OBJECT_ID,
+        object_id=Id(OBJECT_ID),
     )
 
 
@@ -99,7 +100,7 @@ async def test_records_audit_on_download():
         audit_service=audit,
     )
     await uc.execute(_query())
-    audit.record.assert_called_once_with(OBJECT_ID, OWNER_ID, "HUMAN", "test", "DOWNLOAD")
+    audit.record.assert_called_once_with(Id(OBJECT_ID), Id(OWNER_ID), "HUMAN", "test", "DOWNLOAD")
 
 
 # ── Not found / PURGED ────────────────────────────────────────────────────────

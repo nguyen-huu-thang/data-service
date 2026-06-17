@@ -12,8 +12,16 @@ from app.domain.object.valueobject.MimeType import MimeType
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.object.valueobject.ObjectType import ObjectType
 from app.domain.object.valueobject.ObjectVisibility import ObjectVisibility
+from app.domain.sharedkernel.model.Id import Id
 
 _T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+def _as_id(value):
+    """Coerce a raw bytes test id into an Id value object (None stays None)."""
+    if value is None or isinstance(value, Id):
+        return value
+    return Id(value)
 
 # Fixed IDs — deterministic, easy to reason about in tests
 OWNER_ID   = b'\x01' * 24
@@ -43,6 +51,9 @@ def make_object(**overrides) -> DataObject:
         updated_at=_T0,
     )
     defaults.update(overrides)
+    defaults["object_id"] = _as_id(defaults["object_id"])
+    defaults["owner_identity_id"] = _as_id(defaults["owner_identity_id"])
+    defaults["current_version_id"] = _as_id(defaults["current_version_id"])
     return DataObject(**defaults)
 
 
@@ -61,6 +72,9 @@ def make_version(**overrides) -> ObjectVersion:
         created_at=_T0,
     )
     defaults.update(overrides)
+    defaults["version_id"] = _as_id(defaults["version_id"])
+    defaults["object_id"] = _as_id(defaults["object_id"])
+    defaults["created_by_identity_id"] = _as_id(defaults["created_by_identity_id"])
     return ObjectVersion(**defaults)
 
 

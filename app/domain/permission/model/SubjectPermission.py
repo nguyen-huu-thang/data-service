@@ -6,14 +6,15 @@ from app.domain.permission.capability.ObjectCapability import (
 from app.domain.subject.valueobject.SubjectType import (
     SubjectType,
 )
+from app.domain.sharedkernel.model.Id import Id
 
 
 class SubjectPermission:
 
     def __init__(
         self,
-        permission_id: bytes,
-        subject_identity_id: bytes,
+        permission_id: Id,
+        subject_identity_id: Id,
         subject_type: SubjectType,
         permission: ObjectCapability,
         created_at: datetime,
@@ -31,11 +32,11 @@ class SubjectPermission:
         self._updated_at = updated_at
 
     @property
-    def permission_id(self) -> bytes:
+    def permission_id(self) -> Id:
         return self._permission_id
 
     @property
-    def subject_identity_id(self) -> bytes:
+    def subject_identity_id(self) -> Id:
         return self._subject_identity_id
 
     @property
@@ -58,6 +59,14 @@ class SubjectPermission:
         self,
         permission: ObjectCapability,
         updated_at: datetime,
-    ) -> None:
-        self._permission = permission
-        self._updated_at = updated_at
+    ) -> "SubjectPermission":
+        # Immutable state change: return a new instance instead of mutating.
+        # Đổi trạng thái bất biến: trả instance mới thay vì sửa tại chỗ.
+        return SubjectPermission(
+            permission_id=self._permission_id,
+            subject_identity_id=self._subject_identity_id,
+            subject_type=self._subject_type,
+            permission=permission,
+            created_at=self._created_at,
+            updated_at=updated_at,
+        )

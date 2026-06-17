@@ -15,6 +15,7 @@ from test._app_errors import raises_app
 from app.application.dto.version.GetVersionQuery import GetVersionQuery
 from app.application.usecase.version.GetVersionUseCase import GetVersionUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.sharedkernel.model.Id import Id
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, VERSION_ID, make_object, make_version, mock_auth
 
 pytestmark = pytest.mark.asyncio
@@ -22,11 +23,11 @@ pytestmark = pytest.mark.asyncio
 
 def _query(requester: bytes = OWNER_ID) -> GetVersionQuery:
     return GetVersionQuery(
-        requester_identity_id=requester,
+        requester_identity_id=Id(requester),
         requester_subject_type="HUMAN",
         requester_name="test",
-        object_id=OBJECT_ID,
-        version_id=VERSION_ID,
+        object_id=Id(OBJECT_ID),
+        version_id=Id(VERSION_ID),
     )
 
 

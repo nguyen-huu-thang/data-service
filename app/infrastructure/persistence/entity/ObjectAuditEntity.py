@@ -14,9 +14,12 @@ class ObjectAuditEntity(Base):
         primary_key=True,
     )
 
-    object_id: Mapped[bytes] = mapped_column(
+    # Nullable: subject-level actions (grant/revoke subject permission, sync)
+    # are not tied to any object.
+    # Cho phép null: hành động cấp-subject không gắn object nào.
+    object_id: Mapped[bytes | None] = mapped_column(
         LargeBinary(24),
-        nullable=False,
+        nullable=True,
     )
 
     actor_identity_id: Mapped[bytes] = mapped_column(

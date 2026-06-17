@@ -4,7 +4,8 @@ Integration tests — SqlAlchemyVersionRepository against real SQLite DB.
 import pytest
 import pytest_asyncio
 
-from app.common.util.IdGenerator import generate_id
+from app.domain.sharedkernel.factory.IdFactory import IdFactory
+from app.domain.sharedkernel.model.Id import Id
 from app.infrastructure.persistence.repository.object.SqlAlchemyObjectRepository import (
     SqlAlchemyObjectRepository,
 )
@@ -29,7 +30,7 @@ async def repos(db_session):
 @pytest_asyncio.fixture
 async def saved_object(repos, db_session):
     obj_repo, _ = repos
-    obj = make_object(object_id=generate_id(), owner_identity_id=generate_id())
+    obj = make_object(object_id=IdFactory.generate().to_bytes(), owner_identity_id=IdFactory.generate().to_bytes())
     await obj_repo.save(obj)
     await db_session.flush()
     return obj
@@ -39,7 +40,7 @@ async def saved_object(repos, db_session):
 
 async def test_save_and_find_by_id(repos, db_session, saved_object):
     _, ver_repo = repos
-    v = make_version(version_id=generate_id(), object_id=saved_object.object_id)
+    v = make_version(version_id=IdFactory.generate().to_bytes(), object_id=saved_object.object_id)
     await ver_repo.save(v)
     await db_session.flush()
 
@@ -52,7 +53,7 @@ async def test_save_and_find_by_id(repos, db_session, saved_object):
 
 async def test_find_by_id_returns_none_for_unknown(repos):
     _, ver_repo = repos
-    result = await ver_repo.find_by_id(b"\xff" * 24)
+    result = await ver_repo.find_by_id(Id(b"\xff" * 24))
     assert result is None
 
 
@@ -60,9 +61,9 @@ async def test_find_by_id_returns_none_for_unknown(repos):
 
 async def test_find_by_object_returns_versions_in_order(repos, db_session, saved_object):
     _, ver_repo = repos
-    v1 = make_version(version_id=generate_id(), object_id=saved_object.object_id, version_number=1)
-    v2 = make_version(version_id=generate_id(), object_id=saved_object.object_id, version_number=2)
-    v3 = make_version(version_id=generate_id(), object_id=saved_object.object_id, version_number=3)
+    v1 = make_version(version_id=IdFactory.generate().to_bytes(), object_id=saved_object.object_id, version_number=1)
+    v2 = make_version(version_id=IdFactory.generate().to_bytes(), object_id=saved_object.object_id, version_number=2)
+    v3 = make_version(version_id=IdFactory.generate().to_bytes(), object_id=saved_object.object_id, version_number=3)
 
     # Insert out of order to verify ordering
     for v in (v2, v3, v1):
@@ -75,7 +76,7 @@ async def test_find_by_object_returns_versions_in_order(repos, db_session, saved
 
 async def test_find_by_object_returns_empty_for_unknown_object(repos):
     _, ver_repo = repos
-    result = await ver_repo.find_by_object(b"\xff" * 24)
+    result = await ver_repo.find_by_object(Id(b"\xff" * 24))
     assert result == []
 
 
@@ -83,8 +84,8 @@ async def test_find_by_object_returns_empty_for_unknown_object(repos):
 
 async def test_find_latest_returns_highest_version_number(repos, db_session, saved_object):
     _, ver_repo = repos
-    v1 = make_version(version_id=generate_id(), object_id=saved_object.object_id, version_number=1)
-    v2 = make_version(version_id=generate_id(), object_id=saved_object.object_id, version_number=2)
+    v1 = make_version(version_id=IdFactory.generate().to_bytes(), object_id=saved_object.object_id, version_number=1)
+    v2 = make_version(version_id=IdFactory.generate().to_bytes(), object_id=saved_object.object_id, version_number=2)
     await ver_repo.save(v1)
     await ver_repo.save(v2)
     await db_session.flush()
@@ -105,7 +106,7 @@ async def test_find_latest_returns_none_for_object_with_no_versions(repos, saved
 async def test_count_by_object_returns_correct_count(repos, db_session, saved_object):
     _, ver_repo = repos
     for i in range(3):
-        v = make_version(version_id=generate_id(), object_id=saved_object.object_id, version_number=i + 1)
+        v = make_version(version_id=IdFactory.generate().to_bytes(), object_id=saved_object.object_id, version_number=i + 1)
         await ver_repo.save(v)
     await db_session.flush()
 

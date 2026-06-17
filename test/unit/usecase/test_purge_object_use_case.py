@@ -15,6 +15,7 @@ from test._app_errors import raises_app
 from app.application.dto.object.PurgeObjectCommand import PurgeObjectCommand
 from app.application.usecase.object.PurgeObjectUseCase import PurgeObjectUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
+from app.domain.sharedkernel.model.Id import Id
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, VERSION_ID, make_object, make_version, mock_audit, mock_tx
 
 pytestmark = pytest.mark.asyncio
@@ -22,10 +23,10 @@ pytestmark = pytest.mark.asyncio
 
 def _cmd(requester: bytes = OWNER_ID) -> PurgeObjectCommand:
     return PurgeObjectCommand(
-        requester_identity_id=requester,
+        requester_identity_id=Id(requester),
         requester_subject_type="HUMAN",
         requester_name="test",
-        object_id=OBJECT_ID,
+        object_id=Id(OBJECT_ID),
     )
 
 
@@ -96,7 +97,7 @@ async def test_records_audit_on_purge():
         audit_service=audit,
     )
     await uc.execute(_cmd())
-    audit.record.assert_called_once_with(OBJECT_ID, OWNER_ID, "HUMAN", "test", "PURGE")
+    audit.record.assert_called_once_with(Id(OBJECT_ID), Id(OWNER_ID), "HUMAN", "test", "PURGE")
 
 
 async def test_blob_delete_failure_does_not_block_purge():
