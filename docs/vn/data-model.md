@@ -176,7 +176,8 @@ object_audit        ← audit trail
 ## Sharding Model
 
 ```
-identity_id  →  hash  →  partition  →  data shard
+object mới → placement (dung lượng & tải) → shard_id → lưu cùng bản ghi
+đọc/route → shard_id lấy từ bản ghi / tham chiếu (địa chỉ đi kèm dữ liệu)
 ```
 
 Mỗi shard chạy bộ bảng đầy đủ, độc lập riêng:
@@ -196,8 +197,8 @@ DATA_SHARD_02
 ```
 
 **Quy tắc quan trọng:**
-- Shard của object được xác định một lần lúc tạo và không bao giờ thay đổi
-- Routing luôn deterministic: `identity_id → shard_id → route trực tiếp`
+- Shard của object do placement cấp lúc tạo (theo dung lượng & tải) và lưu cố định vào `shard_id`, không bao giờ thay đổi
+- Route bằng `shard_id` lưu sẵn / mang theo trong tham chiếu — KHÔNG tính lại từ `identity_id`
 - Không cross-shard query trong một request đơn
 
 ---

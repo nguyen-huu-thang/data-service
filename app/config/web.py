@@ -7,6 +7,9 @@ from app.common.exception.AppException import AppException
 configure_controllers(
     "app.api.rest.external.object",
     "app.api.rest.external.version",
+    "app.api.rest.external.share",
+    "app.api.rest.external.tag",
+    "app.api.rest.external.reference",
 )
 
 # Platform error standard: AppException renders {errorKey, code, message} with

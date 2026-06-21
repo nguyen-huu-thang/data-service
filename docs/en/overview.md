@@ -76,10 +76,11 @@ Every object is owned by an `identity_id`. This makes Data Service subject-agnos
 
 ### Immutable Data Placement
 
-When an object is created, it is assigned to a shard based on the owner's `identity_id`. That assignment is permanent — the object never migrates to another shard.
+When an object is created, the placement service picks a data shard based on the shards' **capacity & load** (NOT by hashing `identity_id`). The chosen `shard_id` is then **stored immutably on the object record** — the assignment is permanent and the object never migrates to another shard.
 
 ```
-identity_id → hash → partition → DATA_SHARD_XX  (fixed forever)
+new object → placement (capacity & load) → shard_id → stored with the object  (fixed forever)
+read/route → shard_id read from the record / reference (the address travels with the data)
 ```
 
 ### Capability-Based Authorization

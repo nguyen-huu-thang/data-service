@@ -31,7 +31,7 @@ Data Service handles:
 - **Object storage** — upload, serve, and delete binary content (blob)
 - **Metadata management** — object type, visibility, status, versioning
 - **Capability-based authorization** — READ, WRITE, DELETE, SHARE, DOWNLOAD per identity
-- **Immutable shard routing** — each identity maps to a fixed data shard, forever
+- **Immutable shard routing** — placement assigns a data shard at creation (by capacity & load); the `shard_id` is stored with the record and carried when routing, fixed forever
 - **Data lifecycle** — ACTIVE → ARCHIVED → SOFT_DELETED → PURGED
 - **Audit trail** — record every read, write, share, and delete operation
 - **Multi-tenant isolation** — per-tenant data context
@@ -53,10 +53,10 @@ Every object has an owner. The owner is always an `identity_id` — not a user, 
 ### Immutable Data Placement
 
 ```
-identity_id → hash → partition → data shard (fixed forever)
+new object → placement (capacity & load) → shard_id → stored with the record  (fixed forever)
 ```
 
-Once an object is created in shard `DATA_SHARD_07`, it stays there permanently. No cross-shard migrations.
+Once an object is created in shard `DATA_SHARD_07`, it stays there permanently. The shard address travels with the record/reference and is never recomputed from `identity_id`. No cross-shard migrations.
 
 ### Metadata + Blob Separation
 

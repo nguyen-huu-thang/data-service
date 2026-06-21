@@ -176,7 +176,8 @@ object_audit        ← audit trail
 ## Sharding Model
 
 ```
-identity_id  →  hash  →  partition  →  data shard
+new object → placement (capacity & load) → shard_id → stored with the record
+read/route → shard_id read from the record / reference (the address travels with the data)
 ```
 
 Each shard runs its own complete, independent set of tables:
@@ -196,8 +197,8 @@ DATA_SHARD_02
 ```
 
 **Key rules:**
-- An object's shard is determined once at creation and never changes
-- Routing is always deterministic: `identity_id → shard_id → direct route`
+- An object's shard is assigned by placement at creation (by capacity & load), stored immutably in `shard_id`, and never changes
+- Route by the stored `shard_id` / the one carried in the reference — NOT recomputed from `identity_id`
 - No cross-shard queries within a single request
 
 ---

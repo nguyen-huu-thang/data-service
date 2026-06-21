@@ -119,13 +119,16 @@ Các trường quan trọng: `object_id`, `owner_identity_id`, `tenant_id`, `sha
 - REST + JWT `sub`: Base62 string qua `IdService.from_string(s)` / `IdService.to_string(id_)`
 - gRPC wire: `bytes` (proto), bọc `Id(request.field)` khi vào, `.to_bytes()` khi ra
 
-**Domain thuần:** `AccessPolicy` (`domain/permission/policy/`) evaluate capability không cần I/O; `ShardRouter` (`domain/sharedkernel/routing/`) route tất định theo 4 byte đầu identity_id. Cả hai đăng ký tay qua `dependency.register()`.
+**Domain thuần:** `AccessPolicy` (`domain/permission/policy/`) evaluate capability không cần I/O; `ShardRouter` (`domain/sharedkernel/routing/`) hiện route theo 4 byte đầu identity_id (mô hình hash cũ — **nợ kỹ thuật cần refactor**, xem mục "Immutable Sharding"). Cả hai đăng ký tay qua `dependency.register()`.
 
 ### Immutable Sharding
 
 ```text
-owner identity_id → hash → partition → data shard (cố định mãi mãi)
+object mới → placement (dung lượng & tải) → shard_id → lưu cùng bản ghi (cố định mãi mãi)
+đọc/route → shard_id lấy từ bản ghi / tham chiếu (địa chỉ đi kèm dữ liệu, không tính từ identity_id)
 ```
+
+> ⚠️ **Nợ kỹ thuật (cần refactor):** code hiện tại `domain/sharedkernel/routing/ShardRouter.py` vẫn route bằng hash 4 byte đầu `identity_id` (`int.from_bytes(identity_id[:4]) % len(shard_ids)`) — đây là **mô hình cũ đã bị bỏ**. Cần thay bằng: đọc `shard_id` lưu sẵn trên bản ghi / mang theo trong tham chiếu, và lấy `shard_id` cho bản ghi MỚI từ placement-service. Phải sửa cả `ShardRoutingService`, `config/dependency.py` và `test/unit/test_domain_enrichment.py`. **Chưa làm trong đợt cập nhật tài liệu 2026-06-21.**
 
 ### Authorization — Capability-Based
 

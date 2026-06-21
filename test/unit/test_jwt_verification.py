@@ -22,6 +22,7 @@ from app.common.exception.AppException import PublicError
 from app.domain.sharedkernel.model.Id import Id
 from app.domain.sharedkernel.service.IdService import IdService
 from app.domain.trust.VerificationKeyRecord import VerificationKeyRecord
+from app.integration.trust.key.TrustKeyClient import TrustKeyClient
 from app.integration.trust.key.VerificationKeyCache import VerificationKeyCache
 
 pytestmark = pytest.mark.asyncio
@@ -94,8 +95,10 @@ def _build_service(
     if key_record is not None:
         cache.update([key_record])
 
-    trust = MagicMock()
-    trust.fetch_verification_keys = AsyncMock(return_value=trust_returns or [])
+    # spec the mock to TrustKeyClient so a wrong/renamed method fails loudly
+    # (a plain MagicMock would auto-create any attribute and mask the bug).
+    trust = MagicMock(spec=TrustKeyClient)
+    trust.fetch_public_keys = AsyncMock(return_value=trust_returns or [])
 
     config = MagicMock()
     config.get.return_value = _SERVICE_ID
@@ -149,7 +152,7 @@ async def test_unknown_kid_syncs_trust_then_raises():
         await svc.verify(_make_token(priv, kid="no-such-key"))
 
     # Trust must have been called exactly once
-    svc._trust.fetch_verification_keys.assert_called_once()
+    svc._trust.fetch_public_keys.assert_called_once()
 
 
 async def test_cache_miss_syncs_trust_and_verifies():
@@ -161,7 +164,7 @@ async def test_cache_miss_syncs_trust_and_verifies():
     claims = await svc.verify(_make_token(priv))
 
     assert claims.identity_id == _IDENTITY
-    svc._trust.fetch_verification_keys.assert_called_once()
+    svc._trust.fetch_public_keys.assert_called_once()
 
 
 async def test_malformed_token_raises_invalid_token():

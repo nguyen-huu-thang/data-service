@@ -31,7 +31,7 @@ Data Service chịu trách nhiệm:
 - **Object storage** — tải lên, phục vụ và xóa nội dung nhị phân (blob)
 - **Quản lý metadata** — loại object, visibility, trạng thái, versioning
 - **Phân quyền theo capability** — READ, WRITE, DELETE, SHARE, DOWNLOAD theo từng identity
-- **Định tuyến shard cố định** — mỗi identity ánh xạ tới một data shard cố định, mãi mãi
+- **Định tuyến shard cố định** — shard do placement cấp lúc tạo (theo dung lượng & tải), lưu cùng bản ghi và mang theo khi route, mãi mãi không đổi
 - **Vòng đời dữ liệu** — ACTIVE → ARCHIVED → SOFT_DELETED → PURGED
 - **Audit trail** — ghi nhận mọi thao tác đọc, ghi, chia sẻ, xóa
 - **Cô lập multi-tenant** — context dữ liệu độc lập theo tenant
@@ -53,10 +53,10 @@ Mọi object đều có owner. Owner luôn là `identity_id` — không phải u
 ### Immutable Data Placement
 
 ```
-identity_id → hash → partition → data shard (cố định mãi mãi)
+object mới → placement (dung lượng & tải) → shard_id → lưu cùng bản ghi  (cố định mãi mãi)
 ```
 
-Khi object được tạo trong shard `DATA_SHARD_07`, nó ở đó vĩnh viễn. Không có cross-shard migration.
+Khi object được tạo trong shard `DATA_SHARD_07`, nó ở đó vĩnh viễn. Địa chỉ shard đi kèm bản ghi/tham chiếu, không tính lại từ `identity_id`. Không có cross-shard migration.
 
 ### Tách Metadata và Blob
 

@@ -43,10 +43,7 @@ class JwtVerificationService:
         if key_ctx is None:
             # Cache miss — sync from Trust Service and retry once
             try:
-                keys = await self._trust.fetch_verification_keys(
-                    signer_service_id=_SIGNER_SERVICE_ID,
-                    verifier_service_id=self._service_id,
-                )
+                keys = await self._trust.fetch_public_keys()
                 self._cache.update(keys)
             except Exception as e:
                 _log.error("Failed to sync verification keys from Trust Service: %s", e)
