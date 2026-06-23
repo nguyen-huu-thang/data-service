@@ -33,6 +33,36 @@ python app/main.py
 
 ## Việc đang chờ làm
 
+- **Đồng bộ Xime Framework 0.6.0 - Phase 1 (storage starter + streaming download) ĐÃ XONG (2026-06-23).**
+  Theo [`.claude/docs/ke-hoach-dong-bo-framework-0.6.md`](.claude/docs/ke-hoach-dong-bo-framework-0.6.md).
+  Đã thực hiện:
+  - Thay blob storage tự viết bằng starter framework: bind `StorageService:
+    LocalFileStorage` (`xime.starters.localfs`); xóa `BlobStoragePort` +
+    `LocalDiskStorageAdapter` (cả file lẫn test cũ). Config `storage.local.root`
+    giữ nguyên (trùng key framework).
+  - Tách `generate_pointer` -> `ObjectKeyPolicy` thuần ở
+    `app/application/service/storage/`; Create/Version usecase dùng
+    `StorageService.put` + policy, Purge dùng `StorageService.delete`.
+  - Download object/version: usecase chỉ trả `storage_pointer + mime` (bỏ đọc
+    bytes). REST stream qua `xime.adapters.web.files.stream_object` (HTTP Range
+    200/206/416, ETag, không buffer RAM); gRPC handler tự `storage.get()` full
+    bytes để giữ hợp đồng unary (blob mất -> `PrivateError("E060002")`).
+  - Verify: 224 test xanh, `python -m app.main` khởi động trọn vẹn (web `:8084`).
+  - **Phase 2 (mTLS caller guard) ĐÃ XONG (2026-06-23):**
+    - JWT `aud`/`iss` **đã có sẵn** trong `JwtVerificationService` (`audience=
+      service_id`, `issuer="identity"`) - không sửa gì.
+    - Bịt gap thật: `ObjectInternalGrpcHandler` (PurgeObject - xóa vĩnh viễn) trước
+      đây không kiểm caller dù docstring nói "verified via mTLS". Thêm
+      `InternalCallerAuthorizer` (policy allowlist, fail-closed) + handler đọc
+      `current_caller()` (`xime.core.security`) gọi `authorize()` trước usecase.
+    - Config `grpc.internal.allowed_callers: []` (rỗng = chặn hết). Mã lỗi mới
+      System `E064000` (PERMISSION_DENIED); tái dùng `E004003` cho "không có peer".
+    - Verify: 230 test xanh, app khởi động trọn vẹn.
+  - **Còn lại (Phase 3, chưa làm):** streaming upload (`save_upload`, hoãn vì đụng
+    thứ tự authz/hash), cache/redis, backend s3, dynamic binding. Chi tiết trong
+    doc kế hoạch. Lưu ý: `grpc.internal.allowed_callers` đang rỗng -> điền CN service
+    được phép khi có nhu cầu gọi PurgeObject nội bộ.
+
 - **Migrate sang gRPC client SDK + mTLS động - ĐÃ XONG (2026-06-13).** Theo
   [`.claude/docs/migrate-grpc-client-mtls.md`](.claude/docs/migrate-grpc-client-mtls.md).
   Đã thực hiện:
@@ -94,6 +124,7 @@ python app/main.py
 | [`.claude/docs/ke-hoach-don-dep-domain.md`](.claude/docs/ke-hoach-don-dep-domain.md) | **Dọn dẹp + làm giàu domain (HOÀN TẤT 2026-06-17)** — Phase 0-8: ID triệt để, xóa code chết, subfolder, domain thuần, audit đầy đủ, share/tag/reference |
 | [`.claude/docs/ke-hoach-sua-code.md`](.claude/docs/ke-hoach-sua-code.md) | **Kế hoạch sửa code** — 8 phase đồng bộ code với thiết kế mới (đã hoàn tất, supersede bởi ke-hoach-don-dep-domain) |
 | [`.claude/docs/ke-hoach-phase-14.md`](.claude/docs/ke-hoach-phase-14.md) | **Phase 14 — Trust Integration** — mTLS, bootstrap cert, cert rotation, key persistence, schedulers |
+| [`.claude/docs/ke-hoach-dong-bo-framework-0.6.md`](.claude/docs/ke-hoach-dong-bo-framework-0.6.md) | **Đồng bộ với Xime Framework 0.6.0** — **Phase 1 (storage starter + streaming download) + Phase 2 (mTLS caller guard) + Phase 3 (streaming upload + Redis L2 cache khóa Trust) ĐÃ XONG 2026-06-23**; chỉ còn s3 + dynamic binding để dành (YAGNI) |
 
 ### Rules — Quy tắc kiến trúc & Code
 
@@ -174,7 +205,7 @@ Toàn platform dùng **một chuẩn mã lỗi/exception chung** - bắt buộc 
   - **gRPC:** [`app/api/grpc/interceptor/AppExceptionInterceptor.py`](app/api/grpc/interceptor/AppExceptionInterceptor.py) đăng ký qua `configure_grpc_interceptors` trong [`app/config/grpc.py`](app/config/grpc.py) (kênh `GRPC_INTERNAL`, abort kèm metadata `xime-error`/`xime-error-code`). Chạy innermost sau interceptor built-in của framework.
   - **Đã gỡ** toàn bộ `try/except` hardcode trong controller/handler - lỗi propagate lên handler/interceptor toàn cục.
   - **Test bảo vệ chuẩn:** `test/unit/test_error_catalog.py` (không trùng mã, visibility khớp vùng số), `test/unit/test_redaction.py`, `test/unit/test_rest_error_handler.py`, `test/unit/test_grpc_error_interceptor.py`.
-  - **Mã đã dùng:** Public `E067000` (object không tìm thấy) · `E067001` (object đã xóa) · `E067002` (sai trạng thái object); Private `E060000-E060002` (nội bộ/shard/blob); tái dùng common cho auth/permission/input (`E007001/2/3/4`, `E000000`).
+  - **Mã đã dùng:** Public `E067000` (object không tìm thấy) · `E067001` (object đã xóa) · `E067002` (sai trạng thái object); System `E064000` (service gọi không được phép gọi API nội bộ - mTLS caller guard); Private `E060000-E060002` (nội bộ/shard/blob); tái dùng common cho auth/permission/input (`E007001/2/3/4`, `E000000`) và liên service (`E004003` không có peer mTLS).
   - **Ghi chú framework:** vài điểm gap nhỏ của Xime Framework ghi ở [`framework-notes/ghi-chu-framework.md`](framework-notes/ghi-chu-framework.md) (không chặn).
 
 > **Chuẩn layout chung (chốt 2026-06, ghi ở mọi service để đồng bộ):** object thuần error (catalog + `Visibility`/`Channel`/`ErrorRedactor`) đặt ở **tầng domain** để giữ domain framework-neutral; ba lớp exception ở **`common/exception/`**; adapter (REST handler + gRPC interceptor) ở **`api/`**. **Tham chiếu hiện thực đầy đủ theo layout này: trust-service (Java).** data-service đã migrate xong (2026-06-15): object thuần ở `app/domain/error/`, ba lớp exception ở `app/common/exception/`, adapter ở `app/api/` - khớp chuẩn.

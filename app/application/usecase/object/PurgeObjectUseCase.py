@@ -2,11 +2,11 @@ import logging
 from datetime import datetime, timezone
 
 from xime.core.transaction.manager import TransactionManager
+from xime.starters.storage import StorageService
 
 from app.application.dto.object.PurgeObjectCommand import PurgeObjectCommand
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
-from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.service.audit.AuditService import AuditService
 from app.domain.audit.valueobject.AuditAction import AuditAction
@@ -42,14 +42,14 @@ class PurgeObjectUseCase:
         load_object: LoadObjectPort,
         save_object: SaveObjectPort,
         load_version: LoadVersionPort,
-        blob_storage: BlobStoragePort,
+        storage: StorageService,
         audit_service: AuditService,
     ) -> None:
         self._tx = transaction
         self._load = load_object
         self._save = save_object
         self._load_version = load_version
-        self._blob = blob_storage
+        self._storage = storage
         self._audit = audit_service
 
     async def execute(self, command: PurgeObjectCommand) -> None:
@@ -102,7 +102,7 @@ class PurgeObjectUseCase:
 
             for version in versions:
                 try:
-                    await self._blob.delete(
+                    await self._storage.delete(
                         version.storage_pointer
                     )
                 except Exception:

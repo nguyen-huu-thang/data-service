@@ -6,9 +6,9 @@ from app.api.grpc.generated.object_service_pb2 import (
 )
 from app.application.dto.object.CreateObjectCommand import CreateObjectCommand
 from app.application.dto.object.CreateObjectResult import CreateObjectResult
+from app.application.dto.upload.UploadStream import BytesUploadStream
 from app.application.dto.object.DeleteObjectCommand import DeleteObjectCommand
 from app.application.dto.object.DownloadObjectQuery import DownloadObjectQuery
-from app.application.dto.object.DownloadObjectResult import DownloadObjectResult
 from app.application.dto.object.GetObjectQuery import GetObjectQuery
 from app.domain.object.model.DataObject import DataObject
 from app.domain.object.valueobject.ObjectType import ObjectType
@@ -32,9 +32,11 @@ class ObjectGrpcMapper:
             requester_name=requester_name,
             object_type=ObjectType(request.object_type),
             visibility=ObjectVisibility(request.visibility),
-            filename=request.filename,
-            content_type=request.content_type,
-            data=request.data,
+            # gRPC is unary: the whole blob is already in request.data. Wrap it as
+            # a single-chunk UploadStream so the use case has one code path.
+            # gRPC là unary: cả blob đã nằm trong request.data. Bọc thành
+            # UploadStream một chunk để usecase chỉ một đường code.
+            source=BytesUploadStream(request.data, request.filename, request.content_type),
             tenant_id=request.tenant_id or None,
         )
 
@@ -87,11 +89,15 @@ class ObjectGrpcMapper:
             object_id=Id(request.object_id),
         )
 
-    def to_download_response(self, result: DownloadObjectResult) -> DownloadObjectResponse:
+    def to_download_response(self, data: bytes, mime_type: str) -> DownloadObjectResponse:
+        # gRPC DownloadObject is unary: the whole blob is returned in one message.
+        # The handler loads the bytes from storage and passes them here.
+        # gRPC DownloadObject là unary: trả cả blob trong một message. Handler tải
+        # bytes từ storage rồi truyền vào đây.
         return DownloadObjectResponse(
-            data=result.data,
-            mime_type=result.mime_type,
-            content_size=result.content_size,
+            data=data,
+            mime_type=mime_type,
+            content_size=len(data),
         )
 
     def to_delete_command(

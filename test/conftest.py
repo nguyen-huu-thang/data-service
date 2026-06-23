@@ -106,3 +106,31 @@ def mock_auth(*, allow: bool = True) -> MagicMock:
     else:
         svc.require_capability = AsyncMock(side_effect=PublicError("E007004"))
     return svc
+
+
+def mock_storage(*, blob: bytes = b"") -> MagicMock:
+    """Mock the framework StorageService. put/delete are async no-ops; get returns
+    `blob`. put_stream DRAINS the async chunk iterator so a BlobWriter built on top
+    still computes the real content hash/size. Used by use cases that write/remove
+    blobs (create, version, purge).
+    Mock StorageService: put/delete no-op async; get trả `blob`; put_stream rút hết
+    iterator để BlobWriter tính đúng hash/size."""
+    svc = MagicMock()
+    svc.put = AsyncMock(return_value=None)
+    svc.get = AsyncMock(return_value=blob)
+    svc.delete = AsyncMock(return_value=None)
+    svc.exists = AsyncMock(return_value=True)
+
+    async def _drain(key, chunks, content_type=None):
+        async for _ in chunks:
+            pass
+
+    svc.put_stream = AsyncMock(side_effect=_drain)
+    return svc
+
+
+def mock_runtime_config(**values) -> MagicMock:
+    """Mock RuntimeConfig.get(key, default) backed by a dict (default-aware)."""
+    cfg = MagicMock()
+    cfg.get.side_effect = lambda key, default=None: values.get(key, default)
+    return cfg

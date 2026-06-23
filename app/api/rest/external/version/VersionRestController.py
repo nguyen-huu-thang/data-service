@@ -1,7 +1,11 @@
-from fastapi import File, Header, Response, UploadFile
+from fastapi import File, Header, Request, UploadFile
+from fastapi.responses import StreamingResponse
 
 from xime.adapters.web import get, post
+from xime.adapters.web.files import stream_object
+from xime.starters.storage import StorageService
 
+from app.api.rest._upload_stream import UploadFileStream
 from app.api.rest.mapper.VersionRestMapper import (
     CreateVersionResponse,
     VersionListResponse,
@@ -55,6 +59,7 @@ class VersionRestController:
         get_version_use_case: GetVersionUseCase,
         download_version_use_case: DownloadVersionUseCase,
         jwt_verification_service: JwtVerificationService,
+        storage: StorageService,
         mapper: VersionRestMapper,
     ) -> None:
         self._create = create_version_use_case
@@ -62,6 +67,7 @@ class VersionRestController:
         self._get = get_version_use_case
         self._download = download_version_use_case
         self._jwt = jwt_verification_service
+        self._storage = storage
         self._mapper = mapper
 
     @post(
@@ -77,15 +83,14 @@ class VersionRestController:
         authorization: str | None = Header(default=None),
     ) -> CreateVersionResponse:
         claims = await self._jwt.verify(_require_token(authorization))
-        data = await file.read()
+        # Stream the upload instead of reading it fully into memory.
+        # Stream upload thay vì đọc hết vào RAM.
         command = CreateVersionCommand(
             requester_identity_id=claims.identity_id,
             requester_subject_type=claims.subject_type,
             requester_name=claims.name,
             object_id=_parse_id(object_id, "object_id"),
-            filename=file.filename or "upload",
-            content_type=file.content_type or "application/octet-stream",
-            data=data,
+            source=UploadFileStream(file),
         )
         result = await self._create.execute(command)
         return self._mapper.to_create_response(result)
@@ -140,8 +145,9 @@ class VersionRestController:
         self,
         object_id: str,
         version_id: str,
+        request: Request,
         authorization: str | None = Header(default=None),
-    ) -> Response:
+    ) -> StreamingResponse:
         claims = await self._jwt.verify(_require_token(authorization))
         query = DownloadVersionQuery(
             requester_identity_id=claims.identity_id,
@@ -150,13 +156,22 @@ class VersionRestController:
             object_id=_parse_id(object_id, "object_id"),
             version_id=_parse_id(version_id, "version_id"),
         )
+        # Authorize + audit in the use case; stream the resolved blob lazily
+        # (HTTP Range, ETag) instead of buffering it in memory.
+        # Authz + audit ở usecase; stream blob đã phân giải một cách lười (HTTP
+        # Range, ETag) thay vì buffer vào RAM.
         result = await self._download.execute(query)
-        return Response(
-            content=result.data,
-            media_type=result.mime_type,
-            headers={
-                "Content-Disposition": "attachment",
-                "X-Version-Number": str(result.version_number),
-                "X-Content-Hash": result.content_hash,
-            },
+        filename = result.storage_pointer.rsplit("/", 1)[-1]
+        response = await stream_object(
+            self._storage,
+            result.storage_pointer,
+            request=request,
+            content_type=result.mime_type,
+            filename=filename,
+            download=True,
         )
+        # Preserve the version metadata headers the previous contract exposed.
+        # Giữ các header metadata version mà hợp đồng trước đã phơi ra.
+        response.headers["X-Version-Number"] = str(result.version_number)
+        response.headers["X-Content-Hash"] = result.content_hash
+        return response

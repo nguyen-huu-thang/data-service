@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from app.application.dto.upload.UploadStream import UploadStream
 from app.domain.sharedkernel.model.Id import Id
 
 
@@ -9,6 +10,6 @@ class CreateVersionCommand:
     requester_subject_type: str
     requester_name: str
     object_id: Id
-    filename: str
-    content_type: str   # MIME type, e.g. image/jpeg
-    data: bytes         # binary content
+    # Streaming source of the new version's blob (filename + content_type on it).
+    # Nguồn stream của blob version mới (filename + content_type nằm trên đó).
+    source: UploadStream

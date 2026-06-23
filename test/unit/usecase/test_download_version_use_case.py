@@ -1,10 +1,13 @@
 """
 Unit tests — DownloadVersionUseCase:
-  - version found + authorized → blob downloaded, result returned
+  - version found + authorized → resolves storage pointer + metadata
   - object not found / PURGED → ObjectNotFoundException
   - version not found → ObjectNotFoundException
   - version belongs to different object → ObjectNotFoundException
   - permission denied → PermissionDeniedException
+
+The use case no longer reads blob bytes (the adapter streams/loads them); it only
+authorizes, audits and resolves the blob location + version metadata.
 """
 from unittest.mock import AsyncMock, MagicMock
 
@@ -19,8 +22,6 @@ from app.domain.sharedkernel.model.Id import Id
 from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, VERSION_ID, make_object, make_version, mock_audit, mock_auth
 
 pytestmark = pytest.mark.asyncio
-
-_BLOB = b"version binary data"
 
 
 def _query(requester: bytes = OWNER_ID) -> DownloadVersionQuery:
@@ -40,35 +41,24 @@ def _make_uc(*, obj=None, version=None, auth_allow: bool = True):
     load_ver = MagicMock()
     load_ver.find_by_id = AsyncMock(return_value=version)
 
-    blob = MagicMock()
-    blob.download = AsyncMock(return_value=_BLOB)
-
     return DownloadVersionUseCase(
         load_object=load_obj,
         load_version=load_ver,
-        blob_storage=blob,
         authorization_service=mock_auth(allow=auth_allow),
         audit_service=mock_audit(),
-    ), blob
+    )
 
 
 # ── Happy path ────────────────────────────────────────────────────────────────
 
-async def test_returns_blob_data_and_metadata():
+async def test_resolves_pointer_and_metadata():
     v = make_version()
-    uc, _ = _make_uc(obj=make_object(), version=v)
+    uc = _make_uc(obj=make_object(), version=v)
     result = await uc.execute(_query())
-    assert result.data == _BLOB
+    assert result.storage_pointer == v.storage_pointer
     assert result.mime_type == "image/jpeg"
     assert result.content_hash == v.content_hash.value
     assert result.version_number == v.version_number
-
-
-async def test_downloads_from_version_storage_pointer():
-    v = make_version()
-    uc, blob = _make_uc(obj=make_object(), version=v)
-    await uc.execute(_query())
-    blob.download.assert_called_once_with(v.storage_pointer)
 
 
 async def test_records_audit_on_download():
@@ -78,12 +68,9 @@ async def test_records_audit_on_download():
     load_obj.find_by_id = AsyncMock(return_value=make_object())
     load_ver = MagicMock()
     load_ver.find_by_id = AsyncMock(return_value=v)
-    blob = MagicMock()
-    blob.download = AsyncMock(return_value=_BLOB)
     uc = DownloadVersionUseCase(
         load_object=load_obj,
         load_version=load_ver,
-        blob_storage=blob,
         authorization_service=mock_auth(),
         audit_service=audit,
     )
@@ -94,26 +81,26 @@ async def test_records_audit_on_download():
 # ── Not found ─────────────────────────────────────────────────────────────────
 
 async def test_raises_not_found_when_object_missing():
-    uc, _ = _make_uc(obj=None)
+    uc = _make_uc(obj=None)
     with raises_app("E067000"):
         await uc.execute(_query())
 
 
 async def test_raises_not_found_for_purged_object():
-    uc, _ = _make_uc(obj=make_object(status=ObjectStatus.PURGED))
+    uc = _make_uc(obj=make_object(status=ObjectStatus.PURGED))
     with raises_app("E067000"):
         await uc.execute(_query())
 
 
 async def test_raises_not_found_when_version_missing():
-    uc, _ = _make_uc(obj=make_object(), version=None)
+    uc = _make_uc(obj=make_object(), version=None)
     with raises_app("E067000"):
         await uc.execute(_query())
 
 
 async def test_raises_not_found_when_version_belongs_to_different_object():
     v = make_version(object_id=b"\xff" * 24)
-    uc, _ = _make_uc(obj=make_object(), version=v)
+    uc = _make_uc(obj=make_object(), version=v)
     with raises_app("E067000"):
         await uc.execute(_query())
 
@@ -121,6 +108,6 @@ async def test_raises_not_found_when_version_belongs_to_different_object():
 # ── Permission denied ─────────────────────────────────────────────────────────
 
 async def test_raises_permission_denied_when_unauthorized():
-    uc, _ = _make_uc(obj=make_object(), version=make_version(), auth_allow=False)
+    uc = _make_uc(obj=make_object(), version=make_version(), auth_allow=False)
     with raises_app("E007004"):
         await uc.execute(_query(requester=OTHER_ID))

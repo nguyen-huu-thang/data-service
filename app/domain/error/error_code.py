@@ -61,10 +61,14 @@ _CATALOG: tuple[ErrorDef, ...] = (
     _d("E060001", 60001, "Shard không hợp lệ hoặc không xác định",   500, GrpcCode.INTERNAL, _P),
     _d("E060002", 60002, "Lỗi lưu trữ blob",                        500, GrpcCode.INTERNAL, _P),
 
+    # ── Data — System (064000-066999): service khác đọc qua gRPC mTLS ──
+    _d("E064000", 64000, "Service gọi không được phép gọi API nội bộ", 403, GrpcCode.PERMISSION_DENIED, _S),
+
     # ── Data — Public (067000-069999): browser xem được ──
     _d("E067000", 67000, "Không tìm thấy object",                       404, GrpcCode.NOT_FOUND,           _U),
     _d("E067001", 67001, "Object đã bị xóa",                            409, GrpcCode.FAILED_PRECONDITION, _U),
     _d("E067002", 67002, "Trạng thái object không hợp lệ cho thao tác này", 409, GrpcCode.FAILED_PRECONDITION, _U),
+    _d("E067003", 67003, "Nội dung tải lên vượt giới hạn cho phép",       413, GrpcCode.RESOURCE_EXHAUSTED, _U),
 )
 # fmt: on
 

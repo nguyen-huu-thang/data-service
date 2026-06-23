@@ -1,6 +1,10 @@
 from xime.core.config.binding import BindingConfig
 from xime.core.transaction.manager import TransactionManager
+from xime.starters.cache import CacheService
+from xime.starters.localfs import LocalFileStorage
+from xime.starters.redis import RedisCacheService
 from xime.starters.sqlalchemy import SqlAlchemyTransactionManager
+from xime.starters.storage import StorageService
 
 from app.api.grpc.mapper.ObjectGrpcMapper import ObjectGrpcMapper
 from app.api.grpc.mapper.VersionGrpcMapper import VersionGrpcMapper
@@ -15,7 +19,6 @@ from app.application.port.outbound.permission.SavePermissionPort import SavePerm
 from app.application.port.outbound.permission.LoadSubjectPermissionPort import LoadSubjectPermissionPort
 from app.application.port.outbound.audit.SaveAuditPort import SaveAuditPort
 from app.application.port.outbound.audit.LoadAuditPort import LoadAuditPort
-from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 
 # Trust ports
 from app.application.port.outbound.trust.LoadCertificatePort import LoadCertificatePort
@@ -31,8 +34,6 @@ from app.application.port.outbound.permission.SubjectPermissionRepository import
 from app.application.port.outbound.reference.ObjectReferenceRepository import ObjectReferenceRepository
 from app.application.port.outbound.share.ObjectShareRepository import ObjectShareRepository
 from app.application.port.outbound.tag.ObjectTagRepository import ObjectTagRepository
-
-from app.infrastructure.storage.local.LocalDiskStorageAdapter import LocalDiskStorageAdapter
 
 # Trust repositories
 from app.infrastructure.persistence.repository.trust.TrustCertificateRepository import TrustCertificateRepository
@@ -99,6 +100,11 @@ dependency.register(
 dependency.scan(
     # Framework starters (uses __all__ to register only DI-managed singletons)
     "xime.starters.sqlalchemy",
+    # Blob storage backend (LocalFileStorage); bound to StorageService below
+    "xime.starters.localfs",
+    # Redis cache backend (RedisCacheService + client provider); bound to
+    # CacheService below. Client pool is lazy — no connect at startup.
+    "xime.starters.redis",
     # Application services
     "app.application.service",
     # Core use cases (object CRUD + lifecycle)
@@ -124,8 +130,6 @@ dependency.scan(
     "app.infrastructure.persistence.repository.share",
     "app.infrastructure.persistence.repository.tag",
     "app.infrastructure.persistence.repository.reference",
-    # Infrastructure — blob storage
-    "app.infrastructure.storage",
     # Infrastructure — Trust repositories
     "app.infrastructure.persistence.repository.trust",
     # Integration — Trust Service (all sub-packages)
@@ -171,8 +175,11 @@ dependency.bind({
     SaveAuditPort: StructuredAuditRepository,
     LoadAuditPort: StructuredAuditRepository,
 
-    # Blob storage
-    BlobStoragePort: LocalDiskStorageAdapter,
+    # Blob storage — framework storage starter (local filesystem backend)
+    StorageService: LocalFileStorage,
+
+    # Shared L2 cache — framework Redis starter (e.g. Trust verification keys)
+    CacheService: RedisCacheService,
 
     # Trust ports → Trust repositories
     LoadCertificatePort: TrustCertificateRepository,

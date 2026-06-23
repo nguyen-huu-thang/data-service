@@ -8,6 +8,7 @@ from app.application.dto.auth.VerifiedClaims import VerifiedClaims
 from app.common.exception.AppException import PublicError
 from app.domain.sharedkernel.service.IdService import IdService
 from app.integration.trust.key.TrustKeyClient import TrustKeyClient
+from app.integration.trust.key.TrustKeyL2Cache import TrustKeyL2Cache
 from app.integration.trust.key.VerificationKeyCache import VerificationKeyCache
 
 _log = logging.getLogger(__name__)
@@ -20,10 +21,12 @@ class JwtVerificationService:
         self,
         key_cache: VerificationKeyCache,
         trust_key_client: TrustKeyClient,
+        key_l2_cache: TrustKeyL2Cache,
         config: RuntimeConfig,
     ) -> None:
         self._cache = key_cache
         self._trust = trust_key_client
+        self._l2 = key_l2_cache
         # trust.service_id matches the verifier_service_id registered with Trust Service
         self._service_id: str = config.get("trust.service_id", "data-service")
 
@@ -41,14 +44,30 @@ class JwtVerificationService:
         key_ctx = self._cache.resolve(kid, now)
 
         if key_ctx is None:
-            # Cache miss — sync from Trust Service and retry once
+            # L1 (in-process) miss — try the shared L2 cache (Redis) before
+            # contacting Trust, so a key rotated on another instance is reused
+            # without a Trust round-trip. Fail-soft: L2 down -> None -> fall
+            # through to Trust below.
+            # L1 (in-process) miss - thử L2 (Redis) trước khi gọi Trust để dùng
+            # lại khóa instance khác đã sync. Fail-soft: L2 chết -> None -> rơi
+            # xuống Trust bên dưới.
+            l2_keys = await self._l2.load()
+            if l2_keys:
+                self._cache.update(l2_keys)
+                key_ctx = self._cache.resolve(kid, now)
+
+        if key_ctx is None:
+            # L1 + L2 miss — fetch from Trust (source of truth) and warm both
+            # caches so the next lookup (and other instances) avoid the round-trip.
+            # L1 + L2 miss - lấy từ Trust (nguồn sự thật), hâm cả hai cache.
             try:
                 keys = await self._trust.fetch_public_keys()
-                self._cache.update(keys)
             except Exception as e:
                 _log.error("Failed to sync verification keys from Trust Service: %s", e)
                 raise PublicError("E007002","Cannot resolve verification key") from e
 
+            self._cache.update(keys)
+            await self._l2.store(keys)
             key_ctx = self._cache.resolve(kid, now)
 
         if key_ctx is None:

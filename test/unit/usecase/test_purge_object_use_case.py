@@ -16,7 +16,10 @@ from app.application.dto.object.PurgeObjectCommand import PurgeObjectCommand
 from app.application.usecase.object.PurgeObjectUseCase import PurgeObjectUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.sharedkernel.model.Id import Id
-from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, VERSION_ID, make_object, make_version, mock_audit, mock_tx
+from test.conftest import (
+    OBJECT_ID, OTHER_ID, OWNER_ID, VERSION_ID,
+    make_object, make_version, mock_audit, mock_storage, mock_tx,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -41,21 +44,19 @@ def _make_uc(*, obj=None, versions=None, blob_delete_raises=False):
     save = MagicMock()
     save.update = AsyncMock(return_value=None)
 
-    blob = MagicMock()
+    storage = mock_storage()
     if blob_delete_raises:
-        blob.delete = AsyncMock(side_effect=Exception("blob error"))
-    else:
-        blob.delete = AsyncMock(return_value=None)
+        storage.delete = AsyncMock(side_effect=Exception("blob error"))
 
     uc = PurgeObjectUseCase(
         transaction=mock_tx(),
         load_object=load_obj,
         save_object=save,
         load_version=load_ver,
-        blob_storage=blob,
+        storage=storage,
         audit_service=mock_audit(),
     )
-    return uc, save, blob
+    return uc, save, storage
 
 
 # ── Happy path ────────────────────────────────────────────────────────────────
@@ -71,9 +72,9 @@ async def test_marks_object_as_purged():
 async def test_deletes_blob_for_each_version():
     v1 = make_version(version_id=VERSION_ID, version_number=1)
     v2 = make_version(version_id=b"\x0c" * 24, version_number=2)
-    uc, _, blob = _make_uc(obj=make_object(status=ObjectStatus.SOFT_DELETED), versions=[v1, v2])
+    uc, _, storage = _make_uc(obj=make_object(status=ObjectStatus.SOFT_DELETED), versions=[v1, v2])
     await uc.execute(_cmd())
-    assert blob.delete.call_count == 2
+    assert storage.delete.call_count == 2
 
 
 async def test_records_audit_on_purge():
@@ -86,14 +87,13 @@ async def test_records_audit_on_purge():
     load_ver.find_by_object = AsyncMock(return_value=[])
     save = MagicMock()
     save.update = AsyncMock()
-    blob = MagicMock()
-    blob.delete = AsyncMock()
+    storage = mock_storage()
     uc = PurgeObjectUseCase(
         transaction=mock_tx(),
         load_object=load_obj,
         save_object=save,
         load_version=load_ver,
-        blob_storage=blob,
+        storage=storage,
         audit_service=audit,
     )
     await uc.execute(_cmd())

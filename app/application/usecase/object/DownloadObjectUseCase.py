@@ -3,7 +3,6 @@ from xime.core.transaction.manager import TransactionManager
 from app.application.dto.object.DownloadObjectQuery import DownloadObjectQuery
 from app.application.dto.object.DownloadObjectResult import DownloadObjectResult
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
-from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.service.audit.AuditService import AuditService
 from app.domain.audit.valueobject.AuditAction import AuditAction
@@ -22,27 +21,27 @@ class DownloadObjectUseCase:
     1. Load object metadata
     2. Ensure object exists and is not purged
     3. Verify requester has download permission
-    4. Resolve content metadata
+    4. Resolve content metadata (storage pointer + mime type)
     5. Write audit record
-    6. Download blob content
-    7. Return file data
+    6. Return the resolved location
 
-    Blob transfer is intentionally performed outside the
-    database transaction.
+    The blob bytes are intentionally NOT read here. The caller (REST adapter)
+    streams them lazily from storage so large objects never buffer in memory;
+    the gRPC adapter loads them to satisfy its unary contract.
+    Cố ý KHÔNG đọc bytes ở đây. Bên gọi (adapter REST) stream lười từ storage nên
+    object lớn không buffer vào RAM; adapter gRPC tải bytes để thỏa hợp đồng unary.
     """
     def __init__(
         self,
         transaction: TransactionManager,
         load_object: LoadObjectPort,
         load_version: LoadVersionPort,
-        blob_storage: BlobStoragePort,
         authorization_service: AuthorizationService,
         audit_service: AuditService,
     ) -> None:
         self._tx = transaction
         self._load = load_object
         self._load_version = load_version
-        self._blob = blob_storage
         self._auth = authorization_service
         self._audit = audit_service
 
@@ -77,11 +76,7 @@ class DownloadObjectUseCase:
                 AuditAction.DOWNLOAD,
             )
 
-        # Blob download outside DB transaction — IO doesn't need a DB session
-        data = await self._blob.download(storage_pointer)
-
         return DownloadObjectResult(
-            data=data,
+            storage_pointer=storage_pointer,
             mime_type=mime_type,
-            content_size=len(data),
         )

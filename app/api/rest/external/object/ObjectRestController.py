@@ -1,7 +1,11 @@
-from fastapi import File, Form, Header, Response, UploadFile
+from fastapi import File, Form, Header, Request, UploadFile
+from fastapi.responses import StreamingResponse
 
 from xime.adapters.web import delete, get, post
+from xime.adapters.web.files import stream_object
+from xime.starters.storage import StorageService
 
+from app.api.rest._upload_stream import UploadFileStream
 from app.api.rest.mapper.ObjectRestMapper import (
     AuditListResponse,
     CreateObjectResponse,
@@ -67,6 +71,7 @@ class ObjectRestController:
         restore_object_use_case: RestoreObjectUseCase,
         list_object_audit_use_case: ListObjectAuditUseCase,
         jwt_verification_service: JwtVerificationService,
+        storage: StorageService,
         mapper: ObjectRestMapper,
     ) -> None:
         self._create = create_object_use_case
@@ -77,6 +82,7 @@ class ObjectRestController:
         self._restore = restore_object_use_case
         self._list_audit = list_object_audit_use_case
         self._jwt = jwt_verification_service
+        self._storage = storage
         self._mapper = mapper
 
     @post("", status_code=201, response_model=CreateObjectResponse, summary="Upload a new object")
@@ -96,16 +102,16 @@ class ObjectRestController:
             parsed_visibility = ObjectVisibility(visibility)
         except ValueError as e:
             raise PublicError("E007001", str(e))
-        data = await file.read()
+        # Stream the upload (filename/content_type ride on the source) instead of
+        # reading it fully into memory.
+        # Stream upload (filename/content_type nằm trên source) thay vì đọc hết RAM.
         command = CreateObjectCommand(
             requester_identity_id=claims.identity_id,
             requester_subject_type=claims.subject_type,
             requester_name=claims.name,
             object_type=parsed_type,
             visibility=parsed_visibility,
-            filename=file.filename or "upload",
-            content_type=file.content_type or "application/octet-stream",
-            data=data,
+            source=UploadFileStream(file),
             tenant_id=tenant_id or None,
         )
         result = await self._create.execute(command)
@@ -131,8 +137,9 @@ class ObjectRestController:
     async def download_object(
         self,
         object_id: str,
+        request: Request,
         authorization: str | None = Header(default=None),
-    ) -> Response:
+    ) -> StreamingResponse:
         claims = await self._jwt.verify(_require_token(authorization))
         query = DownloadObjectQuery(
             requester_identity_id=claims.identity_id,
@@ -140,14 +147,20 @@ class ObjectRestController:
             requester_name=claims.name,
             object_id=_parse_object_id(object_id),
         )
+        # Authorize + audit happen in the use case; it returns the resolved blob
+        # location. The blob is then streamed lazily (HTTP Range, ETag, no full
+        # buffering in memory) by the framework helper.
+        # Authz + audit ở usecase; nó trả vị trí blob đã phân giải. Blob được stream
+        # lười (HTTP Range, ETag, không buffer hết vào RAM) qua helper của framework.
         result = await self._download.execute(query)
-        return Response(
-            content=result.data,
-            media_type=result.mime_type,
-            headers={
-                "Content-Length": str(result.content_size),
-                "Content-Disposition": "attachment",
-            },
+        filename = result.storage_pointer.rsplit("/", 1)[-1]
+        return await stream_object(
+            self._storage,
+            result.storage_pointer,
+            request=request,
+            content_type=result.mime_type,
+            filename=filename,
+            download=True,
         )
 
     @delete("/{object_id}", status_code=204, summary="Soft delete an object")

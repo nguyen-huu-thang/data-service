@@ -5,10 +5,10 @@ from app.api.grpc.generated.version_service_pb2 import (
     ListVersionsResponse,
     VersionInfo,
 )
+from app.application.dto.upload.UploadStream import BytesUploadStream
 from app.application.dto.version.CreateVersionCommand import CreateVersionCommand
 from app.application.dto.version.CreateVersionResult import CreateVersionResult
 from app.application.dto.version.DownloadVersionQuery import DownloadVersionQuery
-from app.application.dto.version.DownloadVersionResult import DownloadVersionResult
 from app.application.dto.version.GetVersionQuery import GetVersionQuery
 from app.application.dto.version.ListVersionsQuery import ListVersionsQuery
 from app.domain.object.model.ObjectVersion import ObjectVersion
@@ -30,9 +30,9 @@ class VersionGrpcMapper:
             requester_subject_type=requester_subject_type,
             requester_name=requester_name,
             object_id=Id(request.object_id),
-            filename=request.filename,
-            content_type=request.content_type,
-            data=request.data,
+            # gRPC unary: wrap the in-memory blob as a single-chunk UploadStream.
+            # gRPC unary: bọc blob trong RAM thành UploadStream một chunk.
+            source=BytesUploadStream(request.data, request.filename, request.content_type),
         )
 
     def to_create_response(self, result: CreateVersionResult) -> CreateVersionResponse:
@@ -94,12 +94,22 @@ class VersionGrpcMapper:
             version_id=Id(request.version_id),
         )
 
-    def to_download_response(self, result: DownloadVersionResult) -> DownloadVersionResponse:
+    def to_download_response(
+        self,
+        data: bytes,
+        mime_type: str,
+        content_hash: str,
+        version_number: int,
+    ) -> DownloadVersionResponse:
+        # gRPC DownloadVersion is unary: the whole blob is returned in one
+        # message. The handler loads the bytes from storage and passes them here.
+        # gRPC DownloadVersion là unary: trả cả blob trong một message. Handler tải
+        # bytes từ storage rồi truyền vào đây.
         return DownloadVersionResponse(
-            data=result.data,
-            mime_type=result.mime_type,
-            content_hash=result.content_hash,
-            version_number=result.version_number,
+            data=data,
+            mime_type=mime_type,
+            content_hash=content_hash,
+            version_number=version_number,
         )
 
     @staticmethod

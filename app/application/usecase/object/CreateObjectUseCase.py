@@ -1,4 +1,3 @@
-import hashlib
 import logging
 from datetime import datetime, timezone
 
@@ -8,9 +7,10 @@ from app.application.dto.object.CreateObjectCommand import CreateObjectCommand
 from app.application.dto.object.CreateObjectResult import CreateObjectResult
 from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
 from app.application.port.outbound.permission.SavePermissionPort import SavePermissionPort
-from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 from app.application.port.outbound.version.SaveVersionPort import SaveVersionPort
 from app.application.service.audit.AuditService import AuditService
+from app.application.service.storage.BlobWriter import BlobWriter
+from app.application.service.storage.ObjectKeyPolicy import ObjectKeyPolicy
 from app.domain.audit.valueobject.AuditAction import AuditAction
 from app.application.service.routing.ShardRoutingService import ShardRoutingService
 from app.domain.sharedkernel.factory.IdFactory import IdFactory
@@ -46,7 +46,8 @@ class CreateObjectUseCase:
     def __init__(
         self,
         transaction: TransactionManager,
-        blob_storage: BlobStoragePort,
+        blob_writer: BlobWriter,
+        key_policy: ObjectKeyPolicy,
         save_object: SaveObjectPort,
         save_version: SaveVersionPort,
         save_permission: SavePermissionPort,
@@ -54,7 +55,8 @@ class CreateObjectUseCase:
         audit_service: AuditService,
     ) -> None:
         self._tx = transaction
-        self._blob = blob_storage
+        self._blob_writer = blob_writer
+        self._key_policy = key_policy
         self._save_object = save_object
         self._save_version = save_version
         self._save_permission = save_permission
@@ -82,36 +84,27 @@ class CreateObjectUseCase:
         #
         # A retry should produce the same pointer so duplicate uploads
         # do not create additional objects in storage.
-        pointer = await self._blob.generate_pointer(
-            command.requester_identity_id.to_bytes(),
-            object_id.to_bytes(),
-            command.filename,
+        pointer = self._key_policy.build(
+            command.requester_identity_id,
+            object_id,
+            command.source.filename,
         )
 
-        # Upload blob BEFORE database transaction.
+        # Stream the blob into storage BEFORE the database transaction.
         #
-        # Object stores typically cannot participate in database
-        # transactions, so upload happens first.
+        # Object stores typically cannot participate in database transactions, so
+        # the upload happens first. BlobWriter streams the source (no full buffer
+        # in memory) and returns the content hash + size computed on the fly. The
+        # content hash is kept for integrity, dedup and version comparison.
         #
-        # Trade-off:
-        # - storage succeeds
-        # - database fails
+        # Stream blob vào storage TRƯỚC transaction DB. BlobWriter stream nguồn
+        # (không buffer hết vào RAM), trả hash + size tính trên đường đi.
         #
-        # => orphaned blob remains and must be cleaned up later.
-        #
-        # This is acceptable because the pointer is deterministic and
-        # retries are idempotent.
-        await self._blob.upload(
-            pointer,
-            command.data,
-            command.content_type,
-        )
-
-        # Content hash is stored for integrity verification,
-        # deduplication and future version comparisons.
-        content_hash = hashlib.sha256(
-            command.data
-        ).hexdigest()
+        # Trade-off: storage succeeds but DB fails => orphaned blob to clean up
+        # later. Acceptable because the pointer is deterministic and retries are
+        # idempotent.
+        stored = await self._blob_writer.write(pointer, command.source)
+        content_hash = stored.content_hash
 
         try:
             # Object metadata, version metadata and permissions must
@@ -150,8 +143,8 @@ class CreateObjectUseCase:
                     version_number=1,
                     storage_pointer=pointer,
                     content_hash=ContentHash(content_hash),
-                    content_size=len(command.data),
-                    mime_type=MimeType(command.content_type),
+                    content_size=stored.content_size,
+                    mime_type=MimeType(command.source.content_type),
                     created_by_identity_id=command.requester_identity_id,
                     created_by_subject_type=command.requester_subject_type,
                     created_at=now,

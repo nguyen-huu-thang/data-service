@@ -12,11 +12,17 @@ import pytest
 
 from test._app_errors import raises_app
 
+from app.application.dto.upload.UploadStream import BytesUploadStream
 from app.application.dto.version.CreateVersionCommand import CreateVersionCommand
+from app.application.service.storage.BlobWriter import BlobWriter
+from app.application.service.storage.ObjectKeyPolicy import ObjectKeyPolicy
 from app.application.usecase.version.CreateVersionUseCase import CreateVersionUseCase
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.sharedkernel.model.Id import Id
-from test.conftest import OBJECT_ID, OTHER_ID, OWNER_ID, make_object, make_version, mock_audit, mock_auth, mock_tx
+from test.conftest import (
+    OBJECT_ID, OTHER_ID, OWNER_ID,
+    make_object, make_version, mock_audit, mock_auth, mock_runtime_config, mock_storage, mock_tx,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -29,9 +35,7 @@ def _cmd(requester: bytes = OWNER_ID) -> CreateVersionCommand:
         requester_subject_type="HUMAN",
         requester_name="test",
         object_id=Id(OBJECT_ID),
-        filename="file_v2.jpg",
-        content_type="image/jpeg",
-        data=_DATA,
+        source=BytesUploadStream(_DATA, "file_v2.jpg", "image/jpeg"),
     )
 
 
@@ -49,9 +53,8 @@ def _make_uc(*, obj=None, latest_version=None, auth_allow: bool = True):
     save_ver = MagicMock()
     save_ver.save = AsyncMock(return_value=None)
 
-    blob = MagicMock()
-    blob.generate_pointer = AsyncMock(return_value="test/path/v2.jpg")
-    blob.upload = AsyncMock(return_value=None)
+    storage = mock_storage()
+    blob_writer = BlobWriter(storage, mock_runtime_config())
 
     uc = CreateVersionUseCase(
         transaction=mock_tx(),
@@ -59,11 +62,12 @@ def _make_uc(*, obj=None, latest_version=None, auth_allow: bool = True):
         save_object=save_obj,
         load_version=load_ver,
         save_version=save_ver,
-        blob_storage=blob,
+        blob_writer=blob_writer,
+        key_policy=ObjectKeyPolicy(),
         authorization_service=mock_auth(allow=auth_allow),
         audit_service=mock_audit(),
     )
-    return uc, save_ver, save_obj, blob
+    return uc, save_ver, save_obj, storage
 
 
 # ── Happy path ────────────────────────────────────────────────────────────────
@@ -88,9 +92,9 @@ async def test_version_number_increments_from_latest():
 
 
 async def test_uploads_blob_before_saving():
-    uc, save_ver, _, blob = _make_uc(obj=make_object(), latest_version=None)
+    uc, save_ver, _, storage = _make_uc(obj=make_object(), latest_version=None)
     await uc.execute(_cmd())
-    blob.upload.assert_called_once()
+    storage.put_stream.assert_called_once()
     save_ver.save.assert_called_once()
 
 

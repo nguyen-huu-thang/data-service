@@ -1,4 +1,5 @@
 import grpc
+from xime.starters.storage import StorageService
 
 from app.api.grpc.generated.object_service_pb2 import ArchiveObjectResponse, RestoreObjectResponse
 from app.api.grpc.generated.object_service_pb2_grpc import ObjectServiceServicer
@@ -12,7 +13,7 @@ from app.application.usecase.object.DeleteObjectUseCase import DeleteObjectUseCa
 from app.application.usecase.object.DownloadObjectUseCase import DownloadObjectUseCase
 from app.application.usecase.object.GetObjectUseCase import GetObjectUseCase
 from app.application.usecase.object.RestoreObjectUseCase import RestoreObjectUseCase
-from app.common.exception.AppException import PublicError
+from app.common.exception.AppException import PrivateError, PublicError
 from app.domain.object.valueobject.ObjectStatus import ObjectStatus
 from app.domain.sharedkernel.model.Id import Id
 
@@ -33,6 +34,7 @@ class ObjectGrpcHandler(ObjectServiceServicer):
         archive_object_use_case: ArchiveObjectUseCase,
         restore_object_use_case: RestoreObjectUseCase,
         jwt_verification_service: JwtVerificationService,
+        storage: StorageService,
         mapper: ObjectGrpcMapper,
     ) -> None:
         self._create = create_object_use_case
@@ -42,6 +44,7 @@ class ObjectGrpcHandler(ObjectServiceServicer):
         self._archive = archive_object_use_case
         self._restore = restore_object_use_case
         self._jwt = jwt_verification_service
+        self._storage = storage
         self._mapper = mapper
 
     @staticmethod
@@ -73,8 +76,17 @@ class ObjectGrpcHandler(ObjectServiceServicer):
         query = self._mapper.to_download_query(
             request, claims.identity_id, claims.subject_type, claims.name
         )
+        # The use case authorizes + audits and resolves the blob location; the
+        # unary gRPC contract returns the whole blob, so load it here.
+        # Usecase authz + audit và phân giải vị trí blob; hợp đồng gRPC unary trả
+        # cả blob nên tải bytes ở đây.
         result = await self._download.execute(query)
-        return self._mapper.to_download_response(result)
+        data = await self._storage.get(result.storage_pointer)
+        if data is None:
+            # Metadata exists but the blob is missing — internal inconsistency.
+            # Metadata còn nhưng blob mất - lỗi nội bộ không nhất quán.
+            raise PrivateError("E060002")
+        return self._mapper.to_download_response(data, result.mime_type)
 
     async def DeleteObject(self, request, context):
         claims = await self._jwt.verify(self._extract_token(context))

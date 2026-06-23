@@ -87,9 +87,20 @@ def _make_key_record(private_key, kid: str = _KID) -> VerificationKeyRecord:
     )
 
 
+def _make_l2(load_returns: list[VerificationKeyRecord] | None = None) -> MagicMock:
+    # Default: L2 (Redis) miss → None, so behaviour falls through to Trust as
+    # before. store() is a no-op. Tests that exercise an L2 hit override load.
+    # Mặc định: L2 miss → None nên rơi xuống Trust như cũ; store() no-op.
+    l2 = MagicMock()
+    l2.load = AsyncMock(return_value=load_returns)
+    l2.store = AsyncMock(return_value=None)
+    return l2
+
+
 def _build_service(
     key_record: VerificationKeyRecord | None,
     trust_returns: list[VerificationKeyRecord] | None = None,
+    l2: MagicMock | None = None,
 ) -> JwtVerificationService:
     cache = VerificationKeyCache()
     if key_record is not None:
@@ -103,7 +114,7 @@ def _build_service(
     config = MagicMock()
     config.get.return_value = _SERVICE_ID
 
-    return JwtVerificationService(cache, trust, config)
+    return JwtVerificationService(cache, trust, l2 or _make_l2(), config)
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -194,7 +205,34 @@ async def test_missing_sub_claim_raises():
     trust  = MagicMock()
     config = MagicMock()
     config.get.return_value = _SERVICE_ID
-    svc = JwtVerificationService(cache, trust, config)
+    svc = JwtVerificationService(cache, trust, _make_l2(), config)
 
     with pytest.raises(PublicError, match="sub"):
         await svc.verify(token)
+
+
+# ── L2 (Redis) shared cache ───────────────────────────────────────────────────
+
+async def test_l2_hit_resolves_without_contacting_trust():
+    priv = _rsa_key()
+    record = _make_key_record(priv)
+    # L1 empty; L2 returns the key → Trust must NOT be called.
+    svc = _build_service(None, trust_returns=[], l2=_make_l2(load_returns=[record]))
+
+    claims = await svc.verify(_make_token(priv))
+
+    assert claims.identity_id == _IDENTITY
+    svc._trust.fetch_public_keys.assert_not_called()
+
+
+async def test_l2_miss_fetches_trust_and_warms_l2():
+    priv = _rsa_key()
+    record = _make_key_record(priv)
+    l2 = _make_l2(load_returns=None)  # L2 miss
+    svc = _build_service(None, trust_returns=[record], l2=l2)
+
+    claims = await svc.verify(_make_token(priv))
+
+    assert claims.identity_id == _IDENTITY
+    svc._trust.fetch_public_keys.assert_called_once()
+    l2.store.assert_called_once()  # Trust result written back to the shared cache

@@ -1,4 +1,3 @@
-import hashlib
 import logging
 from datetime import datetime, timezone
 
@@ -8,10 +7,11 @@ from app.application.dto.version.CreateVersionCommand import CreateVersionComman
 from app.application.dto.version.CreateVersionResult import CreateVersionResult
 from app.application.port.outbound.object.LoadObjectPort import LoadObjectPort
 from app.application.port.outbound.object.SaveObjectPort import SaveObjectPort
-from app.application.port.outbound.storage.BlobStoragePort import BlobStoragePort
 from app.application.port.outbound.version.LoadVersionPort import LoadVersionPort
 from app.application.port.outbound.version.SaveVersionPort import SaveVersionPort
 from app.application.service.audit.AuditService import AuditService
+from app.application.service.storage.BlobWriter import BlobWriter
+from app.application.service.storage.ObjectKeyPolicy import ObjectKeyPolicy
 from app.domain.audit.valueobject.AuditAction import AuditAction
 from app.application.service.authorization.AuthorizationService import AuthorizationService
 from app.common.exception.AppException import PublicError
@@ -33,7 +33,8 @@ class CreateVersionUseCase:
         save_object: SaveObjectPort,
         load_version: LoadVersionPort,
         save_version: SaveVersionPort,
-        blob_storage: BlobStoragePort,
+        blob_writer: BlobWriter,
+        key_policy: ObjectKeyPolicy,
         authorization_service: AuthorizationService,
         audit_service: AuditService,
     ) -> None:
@@ -42,7 +43,8 @@ class CreateVersionUseCase:
         self._save = save_object
         self._load_version = load_version
         self._save_version = save_version
-        self._blob = blob_storage
+        self._blob_writer = blob_writer
+        self._key_policy = key_policy
         self._auth = authorization_service
         self._audit = audit_service
 
@@ -61,17 +63,21 @@ class CreateVersionUseCase:
         if obj.status != ObjectStatus.ACTIVE:
             raise PublicError("E067002")
 
-        content_hash = hashlib.sha256(command.data).hexdigest()
-        content_size = len(command.data)
         version_id = IdFactory.generate()
 
-        # Upload blob BEFORE DB transaction — blob is not transactional.
-        # The pointer keys on version_id (unique up front), so the upload does
-        # not depend on the version number computed later inside the lock.
-        storage_pointer = await self._blob.generate_pointer(
-            obj.owner_identity_id.to_bytes(), version_id.to_bytes(), command.filename
+        # Stream blob BEFORE DB transaction — blob is not transactional, and
+        # authorization above already gated the write. The pointer keys on
+        # version_id (unique up front), so the upload does not depend on the
+        # version number computed later inside the lock. BlobWriter computes the
+        # content hash + size on the fly without buffering the whole body.
+        # Stream blob TRƯỚC transaction DB; authz ở trên đã gác việc ghi. BlobWriter
+        # tính hash + size trên đường đi, không buffer toàn bộ body.
+        storage_pointer = self._key_policy.build(
+            obj.owner_identity_id, version_id, command.source.filename
         )
-        await self._blob.upload(storage_pointer, command.data, command.content_type)
+        stored = await self._blob_writer.write(storage_pointer, command.source)
+        content_hash = stored.content_hash
+        content_size = stored.content_size
 
         now = datetime.now(timezone.utc)
 
@@ -97,7 +103,7 @@ class CreateVersionUseCase:
                     storage_pointer=storage_pointer,
                     content_hash=ContentHash(content_hash),
                     content_size=content_size,
-                    mime_type=MimeType(command.content_type),
+                    mime_type=MimeType(command.source.content_type),
                     created_by_identity_id=command.requester_identity_id,
                     created_by_subject_type=command.requester_subject_type,
                     created_at=now,
